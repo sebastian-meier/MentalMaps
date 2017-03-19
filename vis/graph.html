@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/d3.ForceEdgeBundling.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path.map{
+                fill:transparent;
+                stroke:#000;
+            }
+
+            .link{
+                stroke:rgb(200,200,200);
+            }
+
+			.node{
+				fill:red;
+			}
+
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+    		    projection = d3.geo.mercator()
+                    .translate([width / 2, height / 2])
+                    .scale(100000)
+        			.precision(0.1)
+        			.center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g"),
+                map = svg.append("g"),
+                network = svg.append("g"),
+				strength,strokewidth,radii;
+
+            var nodes, edges;
+
+            d3.json('http://localhost:10066/network', function(err, data){
+                nodes = data.nodes;
+				radii = d3.scale.linear()
+					.domain([
+						d3.min(nodes, function(d){return d.radius;}),
+						d3.max(nodes, function(d){return d.radius;})
+					])
+					.range([2,30]);
+                for(var i in nodes){
+                    var t = projection([nodes[i].x, nodes[i].y]);
+                    nodes[i].px = nodes[i].x;
+                    nodes[i].py = nodes[i].y;
+					nodes[i].radius = radii(nodes[i].radius);
+                    nodes[i].x = t[0];
+                    nodes[i].y = t[1];
+					nodes[i].haslink = false;
+                }
+
+                edges = data.edges;
+
+				for(var i in edges){
+					var dx = nodes[edges[i].source].x - nodes[edges[i].target].x,
+						dy = nodes[edges[i].source].y - nodes[edges[i].target].y;
+					edges[i].distance = Math.sqrt(dx * dx + dy * dy);
+				}
+
+				strength = d3.scale.linear()
+					.domain([
+						d3.min(edges,function(d){return d.count;}),
+						d3.max(edges,function(d){return d.count;})
+					])
+					.range([0,1]);
+
+                buildNetwork();
+            });
+
+            /*d3.json('../data/bezirke.topojson', function(err, data){
+                map.selectAll('path').data(topojson.feature(data, data.objects.berlin_bezirke).features).enter().append("path")
+					.attr("d", function(d){
+						return path(d);
+					})
+					.attr("class", "map");
+            });*/
+
+			var force = d3.layout.force()
+				.size([1000, 1000])
+				.on("tick", tick),
+				link = network.selectAll(".link"),
+				node = network.selectAll(".node");
+
+            function buildNetwork(){
+				force
+					.gravity(0.5)
+					.nodes(nodes)
+					.links(edges)
+					/*.linkDistance(function(d) {
+						return d.distance;
+					})*/
+					/*.linkStrength(function(d){
+						return strength(d.count);
+					})*/
+					//.friction(0.9)
+					//.theta(0.8)
+					//.alpha(0.1)
+					.charge(-200)
+					.start();
+
+				node = node.data(nodes)
+					.enter().append("circle")
+					.attr("class", "node")
+					.attr("stroke", "#000")
+					.attr("fill", "transparent")
+					.attr("r", function(d){ return d.radius; });
+
+				link = link.data(edges)
+					.enter().append("line")
+					.attr("stroke-width", function(d){ return 1+strength(d.count)*5; })
+					.attr("class", "link");
+
+				drawNetwork();
+            }
+
+			function tick() {
+				var q = d3.geom.quadtree(nodes),
+					i = 0,
+					n = nodes.length;
+
+				while (++i < n) q.visit(collide(nodes[i]));
+
+				drawNetwork();
+			}
+
+			function drawNetwork(){
+				link.attr("x1", function(d) { return d.source.x; })
+					.attr("y1", function(d) { return d.source.y; })
+					.attr("x2", function(d) { return d.target.x; })
+					.attr("y2", function(d) { return d.target.y; });
+
+				node.attr("cx", function(d) { return d.x; })
+					.attr("cy", function(d) { return d.y; });
+			}
+
+			function collide(node) {
+
+				var r = node.radius + 16,
+					nx1 = node.x - r,
+					nx2 = node.x + r,
+					ny1 = node.y - r,
+					ny2 = node.y + r;
+
+				return function(quad, x1, y1, x2, y2) {
+
+					if (quad.point && (quad.point !== node)) {
+
+						var x = node.x - quad.point.x,
+							y = node.y - quad.point.y,
+							l = Math.sqrt(x * x + y * y),
+							r = node.radius + quad.point.radius;
+
+						if (l < r) {
+							l = (l - r) / l * .5;
+							node.x -= x *= l;
+							node.y -= y *= l;
+							quad.point.x += x;
+							quad.point.y += y;
+						}
+
+					}
+
+					return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+				};
+			}
+
+	    </script>
+	</body>
+</html>

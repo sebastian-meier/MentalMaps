@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path{
+                fill:transparent;
+                stroke:transparent;
+				stroke-linejoin: round;
+				stroke-linecap: round;
+				vector-effect: non-scaling-stroke;
+            }
+
+			path.map{
+				fill:transparent;
+				stroke:rgba(0,0,0,0.1);
+			}
+
+			path.building{
+				fill:rgba(0,0,0,1);
+				stroke:rgba(0,0,0,0);
+			}
+
+			path.building.bd-1{
+				fill:rgba(0,0,0,0.1);
+			}
+
+			path.building.bd-2{
+				fill:rgba(0,0,0,0.25);
+			}
+
+			path.building.bd-3{
+				fill:rgba(0,0,0,0.4);
+			}
+
+			path.building.bd-4{
+				fill:rgba(0,0,0,0.55);
+			}
+
+			path.building.bd-5{
+				fill:rgba(0,0,0,0.7);
+			}
+
+			path.building.bd-6{
+				fill:rgb(0,0,0,0.85);
+			}
+
+			path.building{
+				fill:transparent !important;
+				stroke:black;
+			}
+
+			path.walking{
+				stroke:rgb(221, 36, 114);
+			}
+
+			path.cycling{
+				stroke:rgb(24, 148, 201);
+			}
+
+			path.transport{
+				stroke:rgb(25, 182, 97, 0.5);
+			}
+
+			path.running{
+				stroke:rgb(214, 166, 22);
+			}
+
+			path.hull{
+				stroke:red;
+				fill:transparent;
+				stroke-width:2px;
+			}
+
+			.overlay {
+				fill: none;
+				pointer-events: all;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+				year="2015",
+				zoom = d3.behavior.zoom()
+					.translate([width / 2, height / 2])
+					.scale(100000)
+					.scaleExtent([100000, 1500000])
+					.on("zoom", zoomed),
+    		    projection = d3.geo.mercator()
+        			.precision(0.1)
+        			.center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g"),
+                map = svg.append("g"),
+				walks = svg.append("g"),
+                points = svg.append("g");
+
+			svg.append("rect")
+				.attr("class", "overlay")
+				.attr("width", width)
+				.attr("height", height);
+
+			svg
+			    .call(zoom)
+			    .call(zoom.event);
+
+			function zoomed() {
+				projection
+					.translate(zoom.translate())
+					.scale(zoom.scale());
+
+				map.selectAll("path")
+					.attr("d", path);
+
+				points.selectAll("g").selectAll("path")
+					.attr("d", function(d){ return path(d.path); });
+
+				walks.selectAll("g").selectAll("path")
+					.attr("d", function(d){ return path(d.path); });
+			}
+
+            d3.json('../data/bezirke.topojson', function(err, data){
+                map.selectAll('path').data(topojson.feature(data, data.objects.berlin_bezirke).features).enter().append("path")
+					.attr("d", function(d){
+						return path(d);
+					})
+					.attr("class", "map");
+            });
+
+			var clusters = {};
+
+			/*d3.json('http://localhost:10066/mod_buildings/'+year, function(err, data){
+                points.append("g").selectAll('path').data(data).enter().append('path')
+					.attr("d", function(d){
+						return path(d.path);
+					})
+                    .attr('class', function(d){
+						return 'building bd-'+d.count;
+					});
+    		});*/
+
+			d3.json('http://localhost:10066/hulls/'+year, function(err, data){
+				console.log(data);
+                points.append("g").selectAll('path').data(data).enter().append('path')
+					.attr("d", function(d){
+						return path(d.path);
+					})
+					.attr("id",function(d){ return d.id; })
+                    .attr('class', function(d){
+						return 'hull';
+					});
+    		});
+
+			["walking"].forEach(function(type){
+				(function(type){
+					d3.json('http://localhost:10066/activity/'+type+'/'+year+'/true', function(err, data){
+		                walks.append("g").selectAll('path').data(data).enter().append('path')
+							.attr("id", function(d){ return d.id; })
+							.style("stroke", function(d){
+								if(d.cluster in clusters){
+									return clusters[d.cluster];
+								}else{
+									clusters[d.cluster] = "rgba("+Math.round(Math.random()*50)+","+Math.round(Math.random()*100)+","+Math.round(Math.random()*255)+",0.3)";
+									return clusters[d.cluster];
+								}
+							})
+							.attr("d", function(d){ return path(d.path); });
+		                    //.attr('class', type);
+		    		});
+				})(type);
+			});
+
+	    </script>
+	</body>
+</html>

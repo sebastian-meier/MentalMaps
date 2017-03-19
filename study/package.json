@@ -1,0 +1,15 @@
+{
+  "name": "improve",
+  "version": "1.0.0",
+  "main": "improve.js",
+  "engines": {
+    "node": "4.1.0"
+  },
+  "scripts": {},
+  "dependencies": {
+    "fs": "0.0.2",
+    "moment-timezone": "^0.5.5",
+    "pg-native": "^1.10.0",
+    "turf": "^3.0.14"
+  }
+}

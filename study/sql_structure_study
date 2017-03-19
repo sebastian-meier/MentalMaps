@@ -1,0 +1,33 @@
+
+
+
+CREATE TABLE XXXXX (
+    id integer NOT NULL,
+    geom geometry(LineString,4326),
+    activity text,
+    in_berlin,
+    starttime timestamp with time zone,
+    endtime timestamp with time zone
+);
+
+CREATE SEQUENCE XXXXX_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER TABLE public.XXXXX_id_seq OWNER TO sebastianmeier;
+ALTER SEQUENCE XXXXX_id_seq OWNED BY XXXXX.id;
+ALTER TABLE ONLY XXXXX ALTER COLUMN id SET DEFAULT nextval('XXXXX_id_seq'::regclass);
+ALTER TABLE ONLY XXXXX
+    ADD CONSTRAINT XXXXX_pkey PRIMARY KEY (id);
+CREATE INDEX XXXXX_gix ON XXXXX USING gist (geom);
+
+
+
+---------
+
+pg_dump -t re_blocks --schema-only
+
+

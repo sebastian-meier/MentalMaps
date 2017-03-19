@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/d3.ForceEdgeBundling.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path.map{
+                fill:transparent;
+                stroke:#000;
+            }
+
+            .line{
+                stroke:rgb(200,200,200);
+            }
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+    		    projection = d3.geo.mercator()
+                    .translate([width / 2, height / 2])
+                    .scale(200000)
+        			.precision(0.1)
+        			.center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g"),
+                map = svg.append("g"),
+                network = svg.append("g");
+
+            var nodes, edges;
+
+            d3.json('http://localhost:10066/nodes/2015', function(err, data){
+                nodes = data;
+                for(var i in nodes){
+                    var t = projection([nodes[i].x, nodes[i].y]);
+                    nodes[i].px = nodes[i].x;
+                    nodes[i].py = nodes[i].y;
+                    nodes[i].x = t[0];
+                    nodes[i].y = t[1];
+                }
+                d3.json('http://localhost:10066/edges/2015', function(err, data){
+                    edges = data;
+                    buildNetwork();
+                });
+            });
+
+            d3.json('../data/bezirke.topojson', function(err, data){
+                map.selectAll('path').data(topojson.feature(data, data.objects.berlin_bezirke).features).enter().append("path")
+					.attr("d", function(d){
+						return path(d);
+					})
+					.attr("class", "map");
+            });
+
+            function buildNetwork(){
+                var strokeWidth = d3.scale.linear()
+                    .domain([
+                        d3.min(edges, function(d){return d.count;}),
+                        d3.max(edges, function(d){return d.count;})
+                    ])
+                    .range([1,5]);
+
+                //draw nodes
+                network.selectAll('.line')
+                   .data(edges)
+                   .enter()
+                   .append('line')
+                   .classed('line', true)
+                   .attr('stroke-width', function(d){ return strokeWidth(d.count); })
+                   .attr('x1', function(d){ return nodes[d.source].x;})
+                   .attr('y1', function(d){ return nodes[d.source].y;})
+                   .attr('x2', function(d){ return nodes[d.target].x;})
+                   .attr('y2', function(d){ return nodes[d.target].y;});
+
+                //draw nodes
+                network.selectAll('.node')
+                   .data(d3.entries(nodes))
+                   .enter()
+                   .append('circle')
+                   .classed('node', true)
+                   .attr({'r': 2, 'fill':'#ff0000'})
+                   .attr('cx', function(d){ return d.value.x;})
+                   .attr('cy', function(d){ return d.value.y;});
+
+               var fbundling = d3.ForceEdgeBundling().nodes(nodes).edges(edges);
+               var results   = fbundling();
+
+               var d3line = d3.svg.line()
+                   //.x(function(d){return projection([d.x, d.y])[0];})
+                   //.y(function(d){return projection([d.x, d.y])[1];});
+                   //.interpolate("linear");
+                   .x(function(d){return d.x;})
+                   .y(function(d){return d.y;});
+
+               //plot the data
+               for(var i = 0; i < results.length; i++){
+                   network.append("path").attr("d", d3line(results[i]))
+                       .style("stroke-width", strokeWidth(edges[i].count))
+                       .style("stroke", "#ff2222")
+                       .style("fill", "none")
+                       .style('stroke-opacity',0.5);
+               }
+            }
+
+	    </script>
+	</body>
+</html>

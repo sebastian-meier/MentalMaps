@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+        <script src="../libs/jquery-1.11.1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+    </head>
+    <body>
+        <script>
+            var width=1000, owidth = width,
+                height=1000, oheight = height,
+				year = "2015",
+                projection = d3.geo.mercator()
+                    .translate([width / 2, height / 2])
+                    .scale(1500000)
+                    .precision(0.1)
+                    .center([13.403528,52.540212]),
+                path = d3.geo.path()
+                    .projection(projection),
+                container = d3.select('body').append('svg').attr('width', width).attr('height', height),
+                svg = container.append("g"),
+                buildings = svg.append("g");
+
+            function minLatFromGeom(d){if(typeof d[0] === "object"){return d3.min(d, minLatFromGeom);}else{return d[1];}}
+            function maxLatFromGeom(d){if(typeof d[0] === "object"){return d3.max(d, maxLatFromGeom);}else{return d[1];}}
+            function minLngFromGeom(d){if(typeof d[0] === "object"){return d3.min(d, minLngFromGeom);}else{return d[0];}}
+            function maxLngFromGeom(d){if(typeof d[0] === "object"){return d3.max(d, maxLngFromGeom);}else{return d[0];}}
+
+            function drawBuildings(data){
+                buildings.append("g").selectAll('path').data(data).enter().append('path')
+                    .attr("d", function(d){
+                        return path(d.path);
+                    })
+                    .style('fill', function(d){
+                        var a = 0.1;
+                        if(d.count === 0){
+                            a = 0;
+                        }else if(d.count > 6){
+                            a = 1;
+                        }else{
+                            a += 0.15*d.count;
+                        }
+                        var rgb = Math.round(255*a);
+                        return 'rgb('+rgb+', '+rgb+', '+rgb+')';
+                    })
+                    .attr('class', function(d){
+                        return 'building bd-'+d.count;
+                    });
+            }
+
+            var cluster, cluster_id, cluster_count = 0;
+
+            d3.json('http://localhost:10066/clusters/'+year, function(err, data){
+                cluster = data;
+                cluster_id = data[0].id;
+                console.log('Clusters:',data.length);
+                processCluster();
+            });
+
+            var processed = 0;
+
+            function processCluster(){
+
+                d3.json('http://localhost:10066/building/'+cluster_id+'/'+year, function(err, data){
+                    if(data.length >= 1){
+                        svg.remove();
+                        container.attr('width', owidth)
+                            .attr('height', oheight);
+                        projection.translate([owidth / 2, oheight / 2]);
+                        svg = container.append("g"),
+                        buildings = svg.append("g")
+
+                        var min_latitude = d3.min(data, function(d){ return d3.min(d.path.coordinates, minLatFromGeom)});
+                        var max_latitude = d3.max(data, function(d){ return d3.max(d.path.coordinates, maxLatFromGeom)});
+                        var min_longitude = d3.min(data, function(d){ return d3.min(d.path.coordinates, minLngFromGeom)});
+                        var max_longitude = d3.max(data, function(d){ return d3.max(d.path.coordinates, maxLngFromGeom)});
+
+                        var c_latitude = min_latitude+(max_latitude-min_latitude)/2;
+                        var c_longitude = min_longitude+(max_longitude-min_longitude)/2;
+
+                        projection.center([c_longitude, c_latitude]);
+
+                        drawBuildings(data);
+
+                        var bb = buildings.node().getBoundingClientRect();
+                        //console.log(cluster_id); //, min_latitude, max_latitude, min_longitude, max_longitude, bb);
+
+                        width = bb.width+50;
+                        height = bb.height+50;
+
+                        svg.remove();
+                        container.attr('width', width)
+                            .attr('height', height);
+
+                        projection.translate([width / 2, height / 2]);
+
+                        svg = container.append("g");
+                        buildings = svg.append("g");
+
+                        drawBuildings(data);
+
+                        var canvas = d3.select("body").append("canvas")
+                            .attr("width", width)
+                            .attr("height", height);
+
+                        var context = canvas.node().getContext("2d");
+                        var ctx_path = d3.geo.path()
+                            .projection(projection)
+                            .context(context);
+
+                        for(var i = 0; i<data.length; i++){
+                            var a = 0.1;
+                            console.log('index:',data[i]);
+                            if(data[i].count === 0){
+                                a = 0;
+                            }else if(data[i].count > 6){
+                                a = 1;
+                            }else{
+                                a += 0.15*data[i].count;
+                            }
+                            var rgb = Math.abs(Math.round(255*a)-255);
+                            context.beginPath();
+                            ctx_path(data[i].path);
+                            context.closePath();
+                            context.lineWidth = 0;
+                            context.fillStyle = 'rgb('+rgb+', '+rgb+', '+rgb+')';
+                            context.fill();
+                            //context.stroke();
+                        }
+
+
+                        var image_data = canvas.node().toDataURL();
+                        $.ajax({
+                            type: "POST",
+                            url: "http://localhost:8888/work@beanstalk/trunk/prjcts/mentalmaps/vis/save.php",
+                            data: {
+                                content: image_data,
+                                name:"building_cluster_"+year+"_"+cluster_id+".png"
+                            }
+                        });
+
+						canvas.remove();
+
+                        processed++;
+
+                        nextCluster();
+                    }else{
+                        nextCluster();
+                    }
+
+                });
+            }
+
+            function nextCluster(){
+                cluster_count++;
+                if(cluster_count<cluster.length){
+                    cluster_id = cluster[cluster_count].id;
+                    processCluster();
+                }else{
+                    d3.select('body').selectAll('*').remove();
+                    d3.select('body').append('p').html('DONE!');
+                    console.log('done',processed);
+                }
+            }
+        </script>
+    </body>
+</html>

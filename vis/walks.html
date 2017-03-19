@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path{
+                fill:transparent;
+                stroke:rgba(0,0,0,0.1);
+				stroke-linejoin: round;
+				stroke-linecap: round;
+				vector-effect: non-scaling-stroke;
+            }
+
+			path.walking{
+				stroke:rgb(221, 36, 114);
+			}
+
+			path.cycling{
+				stroke:rgb(24, 148, 201);
+			}
+
+			path.transport{
+				stroke:rgba(25, 182, 97, 0.5);
+			}
+
+			path.running{
+				stroke:rgb(214, 166, 22);
+			}
+
+			.overlay {
+				fill: none;
+				pointer-events: all;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+				year="2015"
+				zoom = d3.behavior.zoom()
+					.translate([width / 2, height / 2])
+					.scale(100000)
+					.scaleExtent([100000, 1500000])
+					.on("zoom", zoomed),
+    		    projection = d3.geo.mercator()
+        			.precision(0.1)
+        			.center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g"),
+                map = svg.append("g"),
+                points = svg.append("g");
+
+			svg.append("rect")
+				.attr("class", "overlay")
+				.attr("width", width)
+				.attr("height", height);
+
+			svg
+			    .call(zoom)
+			    .call(zoom.event);
+
+			function zoomed() {
+				projection
+					.translate(zoom.translate())
+					.scale(zoom.scale());
+
+				map.selectAll("path")
+					.attr("d", path);
+
+				points.selectAll("g").selectAll("path")
+					.attr("d", function(d){ return path(d.path); });
+			}
+
+            d3.json('../data/bezirke.topojson', function(err, data){
+                map.selectAll('path').data(topojson.feature(data, data.objects.berlin_bezirke).features).enter().append("path")
+					.attr("d", path)
+            });
+
+			var clusters = {};
+
+			//"transport", "cycling", "running"
+			["walking","cycling","transport"].forEach(function(type){
+				(function(type){
+					d3.json('http://localhost:10066/activity/'+type+'/'+year+'/false', function(err, data){
+		                points.append("g").selectAll('path').data(data).enter().append('path')
+							.attr("id", function(d){ return d.id; })
+							.style("stroke", function(d){
+								if(d.cluster in clusters){
+									return clusters[d.cluster];
+								}else{
+									clusters[d.cluster] = "rgba("+Math.round(Math.random()*255)+","+Math.round(Math.random()*255)+","+Math.round(Math.random()*255)+",1)";
+									return clusters[d.cluster];
+								}
+							})
+							.attr("d", function(d){ return path(d.path); });
+		                    //.attr('class', type);
+		    		});
+				})(type);
+			});
+
+	    </script>
+	</body>
+</html>

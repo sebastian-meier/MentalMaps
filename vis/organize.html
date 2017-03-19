@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Organize</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/jquery-1.11.1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path{
+                fill:transparent;
+                stroke:transparent;
+				stroke-linejoin: round;
+				stroke-linecap: round;
+				vector-effect: non-scaling-stroke;
+            }
+
+			path.geo{
+				stroke-width:5px;
+				stroke:rgba(255,0,0,0.5);
+			}
+
+			path.rotate{
+				stroke:rgba(0,255,0,0.5);
+			}
+
+			path.finals{
+				stroke-width:3px;
+				stroke:rgba(0,0,255,0.5);
+			}
+
+			path.horizontal{
+				stroke-width:3px;
+				stroke:rgba(0,255,255,0.5);
+			}
+
+			path.building{
+				stroke:rgba(255,0,0,0.5);
+			}
+
+			path.rbuilding{
+				fill:rgba(0,0,0,1);
+			}
+
+			rect.frame{
+				fill:transparent;
+				stroke:red;
+			}
+
+			text{
+				fill:black;
+				font-size:10px;
+				font-family: Helvetica, Arial, sans-serif;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+    		    projection = d3.geo.mercator()
+        			.precision(0.1)
+        			.translate([width / 2, height / 2])
+					.scale(700000)
+        			.center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                line = d3.svg.line(),
+                svg,geo,rotates,finals,horizontals,buildings,rbuildings,frame,
+				rotation = 0,
+				center = [],
+				extend = {},
+				msize = {},
+				subhulls,
+				mwidth = 24,
+				mheight= 20,
+				mratio = 18,
+				//0 > horizontal, 1 > vertical
+				mcols = 0,
+				mrows = 0,
+				mdir = 0,
+				jsonBuildings = [],
+				jsonHulls = [];
+
+			var hull = [], clusters = [], clusterCount = 0;
+			var build_id = 209;
+
+			d3.json('http://localhost:10066/clusters/2015', function(err, data){
+				for(var i in data){
+					clusters.push(data[i].id);
+				}
+				nextCluster();
+			});
+
+			function nextCluster(){
+				svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g");
+                geo = svg.append("g");
+				rotates = svg.append("g");
+				finals = svg.append("g");
+				horizontals = svg.append("g");
+				buildings = svg.append("g");
+				rbuildings = svg.append("g");
+				frame = svg.append("g");
+
+				svg.append("text").attr("x",10).attr("y",10).text(clusters[clusterCount]);
+
+				d3.json('http://localhost:10066/hull/'+clusters[clusterCount]+'/2015', function(err, data){
+	                projection.center(centroid(data[0].path.coordinates[0]));
+
+	                geo.append("g").selectAll('path').data(data).enter().append('path')
+						.attr("d", function(d){ return path(d.path); })
+	                    .attr('class', 'geo');
+
+	                hull = [];
+	                for(var i in data[0].path.coordinates[0]){
+	                	hull.push(projection(data[0].path.coordinates[0][i]));
+	                }
+
+	                center = centroid(hull);
+
+	                var steps = 90,
+	                	angle = 0, csize = Number.MAX_VALUE;
+
+	                for(var i = 0; i<steps; i++){
+	                	var n_hull = rotate(hull, (Math.PI/2/steps)*i, center);
+	                	rotates.append("g").attr("transform", "translate("+(width/2)+","+(height/2)+")").append("path").attr("class", "rotate").attr("d", line(n_hull)+"Z");
+	                	var s = size(n_hull);
+	                	if(csize > s){
+	                		csize = s;
+	                		angle = i;
+	                	}
+	                }
+
+	                var n_hull = rotate(hull, (Math.PI/2/steps)*angle, center);
+	                rotation = (Math.PI/2/steps)*angle;
+	                finals.append("g").attr("transform", "translate("+(width/2)+","+(height/2)+")").append("path").attr("class", "finals").attr("d", line(n_hull)+"Z");
+	                if(fwidth(n_hull)<fheight(n_hull)){
+	                	n_hull = rotate(hull, (Math.PI/2/steps)*angle + Math.PI/2, center);
+	                	rotation = (Math.PI/2/steps)*angle + Math.PI/2;
+	                }
+	                horizontals.append("g").attr("transform", "translate("+(width/2)+","+(height/2)+")").append("path").attr("class", "horizontal").attr("d", line(n_hull)+"Z");
+
+	                extend = bounds(n_hull);
+	                msize = {
+	                	width:fwidth(n_hull),
+	                	height:fheight(n_hull)
+	                };
+
+	                var w = fwidth(n_hull),
+						h = fheight(n_hull);
+
+					var s1 = (Math.ceil(w/(mwidth*mratio))*Math.ceil(h/(mheight*mratio))),
+						s2 = (Math.ceil(w/(mheight*mratio))*Math.ceil(h/(mwidth*mratio)));
+
+					if(s1<=s2){
+						mdir = 0;
+						mcols = Math.ceil(w/(mwidth*mratio));
+						mrows = Math.ceil(h/(mheight*mratio));
+					}else{
+						mdir = 1;
+						mcols = Math.ceil(w/(mheight*mratio));
+						mrows = Math.ceil(h/(mwidth*mratio));
+					}
+
+					frame.selectAll("rect").data(new Array(mcols*mrows)).enter().append("rect")
+						.attr("x",function(d,i){
+							return (i-Math.floor(i/mcols)*mcols)*((mdir===1)?mheight:mwidth)*mratio + (extend.x_min+width/2);
+						})
+						.attr("y",function(d,i){
+							return Math.floor(i/mcols)*((mdir===1)?mwidth:mheight)*mratio + (extend.y_min+height/2);
+						})
+						.attr("width",mwidth*mratio)
+						.attr("height",mheight*mratio)
+						.attr("class","frame");
+
+					jsonHulls.push({
+						id:clusters[clusterCount],
+						path:{
+							type:"Polygon",
+							coordinates:[n_hull]
+						}
+					});
+	                
+	                //Calculate the ratio for the print squares
+	                /*var rw = fwidth(n_hull)/(mwidth + mwidth*0.9),
+	                	rh = fheight(n_hull)/(mheight*0.9);
+
+	                if(rw>rh){ mratio = rw; }else{ mratio = rh; }
+
+	                console.log(mratio);*/
+
+	                buildCity();
+	    		});
+			}
+
+			function buildCity(){
+				subhulls = [];
+				for(var i = 0; i<mcols; i++){
+					subhulls[i] = [];
+					for(var j = 0; j<mrows; j++){
+						subhulls[i][j] = [];
+					}
+				}
+
+				d3.json('http://localhost:10066/building/'+clusters[clusterCount]+'/2015', function(data){
+					for(var i in data){
+						var build = [];
+						for(var j in data[i].path.coordinates[0]){
+							build.push(projection(data[i].path.coordinates[0][j]));
+						}
+
+						buildings.append("g")
+							.append("path")
+								.attr("class", "building")
+								.attr("d", line(build)+"Z");
+
+
+						var n_build = rotate(build, rotation, center);
+
+						var b = bounds(n_build);
+
+						var col_start = Math.floor((b.x_min-extend.x_min)/((mdir===0)?mwidth*mratio:mheight*mratio)),
+							col_end = Math.floor((b.x_max-extend.x_min)/((mdir===0)?mwidth*mratio:mheight*mratio)),
+							row_start = Math.floor((b.y_min-extend.y_min)/((mdir===0)?mheight*mratio:mwidth*mratio)),
+							row_end = Math.floor((b.y_max-extend.y_min)/((mdir===0)?mheight*mratio:mwidth*mratio));
+
+						var col,row;
+
+						if(col_start === col_end){
+							col = col_start;
+						}else{
+							var c = (col_start+1)*((mdir===1)?mwidth:mheight);
+							var cd1 = c-b.x_min,
+								cd2 = b.x_max-c;
+							if(cd1>cd2){
+								col = col_start;
+							}else{
+								col = col_end;
+							}
+						}
+
+						if(row_start === row_end){
+							row = row_start;
+						}else{
+							var r = (row_start+1)*((mdir===1)?mwidth:mheight);
+							var rd1 = r-b.y_min,
+								rd2 = b.y_max-r;
+							if(cd1>cd2){
+								row = row_start;
+							}else{
+								row = row_end;
+							}
+						}
+
+						rbuildings.append("g")
+							.attr("transform", "translate("+(width/2)+","+(height/2)+")")
+							.append("path")
+								.attr("class", "rbuilding")
+								//255*((b.x_min-extend.x_min)/msize.width)
+								.style("fill", "rgba("+Math.round((255/mcols)*col)+","+Math.round((255/mrows)*row)+",0,1)")
+								.attr("d", line(n_build)+"Z");
+
+						var t_cluster = clusters[clusterCount];
+						if(mcols*mrows > 1){
+							t_cluster += "_"+col+"_"+row;
+							subhulls[col][row] = subhulls[col][row].concat(n_build);
+						}
+
+						jsonBuildings.push({
+							count:data[i].count,
+							cluster:t_cluster,
+							path:{
+								type:"Polygon",
+								coordinates:[n_build]
+							}
+						});
+
+					}
+
+					if(mcols*mrows > 1){
+						for(var i in subhulls){
+							for(var j in subhulls[i]){
+								jsonHulls.push({
+									id:clusters[clusterCount]+"_"+i+"_"+j,
+									path:{
+										type:"Polygon",
+										coordinates:[d3.geom.hull(subhulls[i][j])]
+									}
+								});
+							}
+						}
+					}
+
+					clusterCount++;
+					if(clusterCount<clusters.length){
+						setTimeout(nextCluster, 1000);
+					}else{
+						console.log("done");
+						//{"path":{"type":"Polygon","coordinates":[[[x,y],[x,y]]]},"count":5,"cluster":193}
+						//{"id":225,"path":{"type":"Polygon","coordinates":[[[x,y],[x,y]]]}}
+
+						$.ajax({
+							type: "POST",
+							url: "http://prjcts:8888/mentalmaps/vis/save.php",
+							data: {
+								content: JSON.stringify({buildings:jsonBuildings, hulls:jsonHulls}),
+								name:"aligned_buildings_2015.json"
+							}
+						});
+					}
+				});
+			}
+
+			//c = center
+    		function rotate(obj, angle, c){
+    			var r_hull = [];
+    			for(var i in obj){
+    				var polar = cartesianToPolar(obj[i][0]-c[0],obj[i][1]-c[1]);
+    				r_hull.push(polarToCartesian(polar[0]+angle, polar[1]));
+    			}
+    			return r_hull;
+    		}
+
+    		//returns x,y
+    		function polarToCartesian(theta, radius) {
+				var returnFloat = [0.0 , 0.0];
+				returnFloat[0] = radius * Math.cos(theta);
+				returnFloat[1] = radius * Math.sin(theta);
+				return returnFloat;
+			}
+
+			//returns angle, radius
+			function cartesianToPolar(x, y) {
+				var returnFloat = [0.0 , 0.0];
+				returnFloat[0] = Math.atan2( y , x );
+				returnFloat[1] = Math.sqrt( x * x + y * y );
+				return returnFloat;
+			}
+
+    		function centroid(obj){
+    			var b = bounds(obj);
+    			return [ (b.x_min+(b.x_max-b.x_min)/2) , (b.y_min+(b.y_max-b.y_min)/2) ];
+    		}
+
+    		function bounds(obj){
+    			return {
+    				x_min : d3.min(obj, function(d){ return d[0]; }),
+                	x_max : d3.max(obj, function(d){ return d[0]; }),
+                	y_min : d3.min(obj, function(d){ return d[1]; }),
+                	y_max : d3.max(obj, function(d){ return d[1]; })
+                };
+    		}
+
+			function fwidth(obj){
+    			var b = bounds(obj);
+    			return b.x_max - b.x_min;
+    		}
+
+    		function fheight(obj){
+    			var b = bounds(obj);
+    			return b.y_max - b.y_min;
+    		}
+
+    		function size(obj){
+    			var w = fwidth(obj), 
+    				h = fheight(obj);
+
+    			return w*h;
+    		}
+
+	    </script>
+	</body>
+</html>

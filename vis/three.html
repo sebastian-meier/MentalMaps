@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Three.js Geometry Browser</title>
+	</head>
+	<body>
+		<script src="http://cdn:8888/three.r70.min.js"></script>
+		<script src="http://cdn:8888/d3.v4.min.js"></script>
+		<script src="http://cdn:8888/jquery-2.1.4.min.js"></script>
+		<script>
+
+			var THREETUT = THREETUT || {};
+				THREETUT.Shaders = {
+					Pink: {
+						'vertex': ["void main() {",
+							"gl_Position = projectionMatrix *",
+							"modelViewMatrix *",
+							"vec4(position,1.0);",
+						"}"].join("\n"),
+
+						'fragment': ["void main() {",
+							"gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);",
+						"}"].join("\n")
+					},
+
+					Lit: {
+						'vertex': ["varying vec3 vNormal;",
+						"void main() {",
+							"vNormal = normal;",
+							"gl_Position = projectionMatrix *",
+							"modelViewMatrix *",
+							"vec4(position,1.0);",
+						"}"].join("\n"),
+
+						'fragment': ["varying vec3 vNormal;",
+							"void main() {",
+							"vec3 light = vec3(0.5,0.2,1.0);",
+							"light = normalize(light);",
+							"float dProd = max(0.0, dot(vNormal, light));",
+							"gl_FragColor = vec4(dProd, dProd, dProd, 1.0);",
+						"}"].join("\n")
+					},
+
+					LitAttribute: {
+						'vertex': ["attribute float displacement;", 
+						"varying vec3 vNormal;",
+						"void main() {",
+							"vNormal = normal;",
+							"vec3 newPosition = position + normal * vec3(displacement);",
+							"gl_Position = projectionMatrix *",
+							"modelViewMatrix *",
+							"vec4(newPosition,1.0);",
+						"}"].join("\n"),
+
+						'fragment': ["varying vec3 vNormal;",
+						"void main() {",
+							"vec3 light = vec3(0.5,0.2,-1.0);",
+							"light = normalize(light);",
+							"float dProd = max(0.4, dot(vNormal, light));",
+							"gl_FragColor = vec4(dProd, dProd, dProd, 1.0);",
+						"}"].join("\n")
+					},
+
+					LitAttributeAnimated: {
+						'vertex': ["uniform float amplitude;",
+						"attribute float displacement;", 
+						"varying vec3 vNormal;",
+						"void main() {",
+							"vNormal = normal;",
+							"vec3 newPosition = position + normal * vec3(displacement * amplitude);",
+							"gl_Position = projectionMatrix *",
+							"modelViewMatrix *",
+							"vec4(newPosition,1.0);",
+						"}"].join("\n"),
+
+						'fragment': ["varying vec3 vNormal;",
+						"void main() {",
+							"vec3 light = vec3(0.5,0.2,1.0);",
+							"light = normalize(light);",
+							"float dProd = max(0.0, dot(vNormal, light));",
+							"gl_FragColor = vec4(dProd, dProd, dProd, 1.0);",
+						"}"].join("\n")
+					}
+				};
+
+			var scene = new THREE.Scene();
+			var camera = new THREE.PerspectiveCamera( 75, 1920 / 1080, 0.1, 50 );
+				camera.position.z = 6;
+
+			var renderer = new THREE.WebGLRenderer( { antialias: false, preserveDrawingBuffer: true, alpha: true } );
+				renderer.shadowMapEnabled = true;
+				renderer.shadowMapType = THREE.PCFSoftShadowMap;
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( 1920, 1080 );
+				renderer.setClearColor( 0xffffff, 1 );
+
+			document.body.appendChild( renderer.domElement );
+
+			/*var lights = [];
+				lights[ 0 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+				lights[ 1 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+				lights[ 2 ] = new THREE.PointLight( 0xffffff, 1, 0 );
+
+				lights[ 0 ].position.set( 0, 200, 0 );
+				lights[ 1 ].position.set( 100, 200, 100 );
+				lights[ 2 ].position.set( - 100, - 200, - 100 );
+
+			scene.add( lights[ 0 ] );
+			scene.add( lights[ 1 ] );
+			scene.add( lights[ 2 ] );*/
+
+			var meshes = [];
+
+			var prevFog = false;
+
+			var aniCount = 0,
+				scaler = 0.0001;
+
+			var render = function () {
+
+				var image_data = d3.select("canvas").node().toDataURL();
+                $.ajax({
+                    type: "POST",
+                    url: "http://localhost:8888/work@beanstalk/trunk/prjcts/mentalmaps/vis/save.php",
+                    data: {
+                        content: image_data,
+                        name:"three_render_"+aniCount+".png"
+                    }
+                });
+
+				aniCount++;
+
+				if(group.scale.z < 1){
+					requestAnimationFrame( render );
+				}
+
+				group.scale.z += scaler;
+				scaler += 0.0001;
+
+
+				if(group.scale.z >= 1){
+					group.scale.z > 1;
+				}
+
+				renderer.render( scene, camera );
+
+			};
+
+			/*window.addEventListener( 'resize', function () {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}, false );*/
+
+			var group = new THREE.Object3D();
+
+			d3.json('tmp/buildings_2015.json', function(err, data){
+
+				var max = d3.max(data.buildings, function(d){ return d.count; });
+
+				data.buildings.forEach(function(d){
+					d.path.coordinates[0].forEach(function(d){
+						//d[0] *= -1;
+						d[1] *= -1;
+					});
+				});
+
+				var max_x = d3.max(data.buildings, function(d){ return d3.max(d.path.coordinates[0], function(d){ return d[0];}); }),
+					max_y = d3.max(data.buildings, function(d){ return d3.max(d.path.coordinates[0], function(d){ return d[1];}); }),
+					min_x = d3.min(data.buildings, function(d){ return d3.min(d.path.coordinates[0], function(d){ return d[0];}); }),
+					min_y = d3.min(data.buildings, function(d){ return d3.min(d.path.coordinates[0], function(d){ return d[1];}); });
+
+				var x = max_x - min_x,
+					y = max_y - min_y,
+					s;
+
+					if(x>y){
+						s = x;
+					}else{
+						s = y;
+					}
+
+				s = s/10;
+
+				for(var i = 0; i<data.buildings.length; i++){
+					var building = data.buildings[i],
+						c = building.path.coordinates[0];
+
+					var extrudeSettings = {
+						steps: 1,
+						amount: Math.sqrt(building.count/max) * 2 + 0.1,
+						bevelEnabled: false,
+						material		: 0,
+						extrudeMaterial : 1
+					};
+
+					var color = 150 - Math.round(building.count/max * 100);
+
+					//var material = new THREE.MeshBasicMaterial( { color: new THREE.Color("rgb("+color+", "+color+", "+color+")") } );
+
+					var shaderMaterial = new THREE.ShaderMaterial({
+						attributes: 	{},
+						uniforms:		{},
+						vertexShader:   THREETUT.Shaders.Lit.vertex,
+					    fragmentShader: THREETUT.Shaders.Lit.fragment
+					    ,side: THREE.FrontSide
+					});
+
+					
+					//Initiate Material
+					
+					var materials = [
+						new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors, color: "rgb(0.2,0.2,0.2)",ambient: "rgb(0.2,0.2,0.2)", shininess: 1, lights:true}),
+						new THREE.MeshLambertMaterial({vertexColors: THREE.VertexColors, color: "rgb(0.5,0.5,0.5)",ambient: "rgb(0.5,0.5,0.5)", shininess: 1, lights:true})
+					];
+
+					var material = new THREE.MeshFaceMaterial(materials);
+
+					var s_min_x = d3.min(c, function(d){return d[0];}),
+						s_min_y = d3.min(c, function(d){return d[1];});
+
+					if(c.length>2){
+						var points = [];
+						for(var j = 0; j<c.length; j++){
+							points.push(new THREE.Vector2( ((c[j][0]-s_min_x))/s, (c[j][1]-s_min_y)/s ));
+						}
+						points.push( new THREE.Vector2( ((c[0][0]-s_min_x))/s, (c[0][1]-s_min_y)/s ));
+
+						var shape = new THREE.Shape(points);
+
+						var geometry = new THREE.ExtrudeGeometry( shape, extrudeSettings );
+
+						for(var f = 0; f<geometry.faces.length; f++){
+							geometry.faces[f].color.setRGB(color, color, color);
+						}
+
+						var mesh = new THREE.Mesh( geometry, material ) ;
+							mesh.castShadow = true;
+							mesh.receiveShadow = true;
+							mesh.position.setX(s_min_x/s - (x/s) - 4);
+							mesh.position.setY(s_min_y/s + (y/s));
+							mesh.position.setZ(0);
+
+						meshes.push(mesh);
+
+						group.add( mesh );
+					}
+
+				}
+
+				//group.rotation.z = Math.PI;
+				//group.rotation.y = Math.PI;
+				group.rotation.x = Math.PI/180*-70;
+				group.scale.z = 0.001;
+				scene.add( group );
+				
+				var directionalLight = new THREE.DirectionalLight(0xffffff, 0.005);
+					directionalLight.position.set(0, 50, 200);
+					directionalLight.target = mesh;
+					directionalLight.castShadow = true;
+					directionalLight.shadowDarkness = 0.5;
+					scene.add( directionalLight );
+
+				render();
+
+			});
+		</script>
+	</body>
+</html>

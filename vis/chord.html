@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            .chord path {
+                fill-opacity: .67;
+                stroke: #000;
+                stroke-width: .5px;
+            }
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+                innerRadius = Math.min(width, height) * .41,
+                outerRadius = innerRadius * 1.1,
+                svg = d3.select('body').append('svg').attr('width', width).attr('height', height).append("g").append("g")
+                    .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+            var matrix = [];
+            var fmatrix = [];
+            var trans = [];
+            var trans_iter = 0;
+
+			d3.json('http://localhost:10066/connections/notsame/10', function(err, data){
+                for(var i = 0; i<data.length; i++){
+                    matrix.push([]);
+                    for(var j = 0; j<data.length; j++){
+                        matrix[i].push(0);
+                    }
+                }
+
+				for(var i = 0; i<data.length; i++){
+                    var d = data[i];
+                    var id_1 = false, id_2 = false;
+                    if(d.id_1 in trans){ id_1 = trans[d.id_1]; }else{ trans[d.id_1] = trans_iter; id_1 = trans_iter; trans_iter++; }
+                    if(d.id_2 in trans){ id_2 = trans[d.id_2]; }else{ trans[d.id_2] = trans_iter; id_2 = trans_iter; trans_iter++; }
+
+                    matrix[id_1][id_2] = d.count;
+                    matrix[id_2][id_1] = d.count;
+                }
+
+                for(var i = 0; i<trans_iter; i++){
+                    fmatrix.push([]);
+                    for(var j = 0; j<trans_iter; j++){
+                        fmatrix[i].push(parseInt(matrix[i][j]));
+                    }
+                }
+
+                var chord = d3.layout.chord()
+                    .padding(.05)
+                    .sortSubgroups(d3.descending)
+                    .matrix(fmatrix);
+
+                svg.append("g").selectAll("path")
+                    .data(chord.groups)
+                  .enter().append("path")
+                    //.style("fill", function(d) { return fill(d.index); })
+                    //.style("stroke", function(d) { console.log(d); return "rgba(0,0,0,1)"; })
+                    .attr("d", d3.svg.arc().innerRadius(innerRadius).outerRadius(outerRadius))
+                    .on("mouseover", fade(.1))
+                    .on("mouseout", fade(1));
+
+                    var chords = chord.chords();
+
+                var color = d3.scale.linear()
+                    .range(["rgb(27, 204, 209)", "rgb(2, 9, 173)"])
+                    .domain([
+                        d3.min(chords, function(d){return Math.abs((d.source.startAngle-d.source.endAngle));}),
+                        d3.max(chords, function(d){return Math.abs((d.source.startAngle-d.source.endAngle));})
+                    ]);
+
+                svg.append("g")
+                    .attr("class", "chord")
+                  .selectAll("path")
+                    .data(chords)
+                  .enter().append("path")
+                    .attr("d", d3.svg.chord().radius(innerRadius))
+                    .style("fill", function(d) { return color(Math.abs((d.source.startAngle-d.source.endAngle))); })
+                    .style("opacity", 1);
+
+                var ticks = svg.append("g").selectAll("g")
+                    .data(chord.groups)
+                  .enter().append("g").selectAll("g")
+                    .data(groupTicks)
+                  .enter().append("g")
+                    .attr("transform", function(d) {
+                      return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")"
+                          + "translate(" + outerRadius + ",0)";
+                    });
+
+                ticks.append("line")
+                    .attr("x1", 1)
+                    .attr("y1", 0)
+                    .attr("x2", 5)
+                    .attr("y2", 0)
+                    .style("stroke", "#000");
+
+                ticks.append("text")
+                    .attr("x", 8)
+                    .attr("dy", ".35em")
+                    .attr("transform", function(d) { return d.angle > Math.PI ? "rotate(180)translate(-16)" : null; })
+                    .style("text-anchor", function(d) { return d.angle > Math.PI ? "end" : null; })
+                    .text(function(d) { return d.label; });
+
+
+                // Returns an array of tick angles and labels, given a group.
+                function groupTicks(d) {
+                  var k = (d.endAngle - d.startAngle) / d.value;
+                  return d3.range(0, d.value, 10).map(function(v, i) {
+                    return {
+                      angle: v * k + d.startAngle,
+                      label: (i===0)?d.value:((i % 5) ? null : v)
+                    };
+                  });
+                }
+
+                // Returns an event handler for fading a given chord group.
+                function fade(opacity) {
+                  return function(g, i) {
+                    svg.selectAll(".chord path")
+                        .filter(function(d) { return d.source.index != i && d.target.index != i; })
+                      .transition()
+                        .style("opacity", opacity);
+                  };
+                }			});
+	    </script>
+	</body>
+</html>

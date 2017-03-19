@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../../libs/geojsonhint.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../../libs/turf.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../../libs/d3.v4.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+				border:0;
+				width:100%;
+			}
+
+			path{
+				fill:transparent;
+				stroke:rgba(0,0,0,0.05);
+			}
+
+			.re_blocks path{
+				fill:transparent;
+				stroke:rgba(0,0,0,1);
+			}
+
+			path.buffer{
+				stroke:transparent;
+				fill:#e6f9ee;
+			}
+
+			circle{
+				fill:rgba(0,0,0,1);
+				stroke:red;
+				stroke-width:2px;
+			}			
+
+			/*line.cycling{
+				stroke:rgba(255,0,0,0.2);
+			}
+
+			line.walking{
+				stroke:rgba(0,255,0,0.2);
+			}
+
+			line.transport{
+				stroke:rgba(0,0,255,0.2);
+			}*/
+
+			line{
+				stroke-width:3px;
+				stroke-linejoin:round;
+				stroke-linecap:round;
+				stroke:#2ecc71;
+			}
+
+			#overlay{
+				stroke:transparent;
+				fill:#fff;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+        	var width = 1920,
+        		height = 1080;
+
+            var svg = d3.select('body').append('svg')
+            	.attr('width', width)
+            	.attr('height', height);
+
+            var clip = svg.append('defs').append('clipPath').attr('id','berlin');
+
+            var background = svg.append('g'),
+            	foreground = svg.append('g');
+
+            var projection = d3.geoMercator()
+            	.scale(250000)
+            	.center([13.3888599,52.5170365])
+            	.translate([width/2, height/2]);
+
+            var path = d3.geoPath().projection(projection);
+
+			function getLength(path, projection){
+            	var l = 0;
+            	for(var i = 0; i<path.length-1; i++){
+            		l += distance(path[i], path[i+1]);
+            	}
+            	return l;
+            }
+
+            function distance(p1,p2){
+            	return Math.sqrt(Math.pow((p2[0]-p1[0]),2) + Math.pow((p2[1]-p1[1]),2));
+            }
+
+            var d_blocks, d_filter_blocks, d_water, d_green, d_berlin, d_moves;
+
+            var segments = [],
+            	times = [],
+            	speed = 0.01,
+            	full_distance,
+            	marker,
+            	maxTime = 5000,
+            	time = 0,
+            	g,
+            	the_doy = 126,
+            	lines,
+            	end = 0,
+            	current = 0,
+            	mode = 'rand'; //rand,seq
+
+            function processData(data){
+            	data = data.filter(function(d,i){
+            		if(d.st_asgeojson.length >= 1){
+            			return true;
+            		}else{
+            			return false;
+            		}
+            	});
+
+        		data.forEach(function(d,i){
+            		d.json = JSON.parse(d.st_asgeojson);
+            	});
+
+            	return data;
+            }
+
+
+            var filters = {"19":true,"20":true,"29":true,"50":true,"55":true,"56":true,"68":true,"73":true,"91":true,"115":true,"118":true,"152":true,"173":true,"182":true,"191":true,"204":true,"230":true,"233":true,"236":true,"238":true,"275":true,"320":true,"322":true,"325":true,"326":true,"363":true,"371":true,"380":true,"416":true,"434":true,"489":true,"602":true,"603":true,"606":true,"607":true,"608":true,"609":true,"742":true,"743":true,"744":true,"745":true,"746":true,"747":true,"748":true,"749":true,"750":true,"797":true,"798":true,"799":true,"800":true,"801":true,"802":true,"822":true,"826":true,"853":true,"874":true,"888":true,"929":true,"942":true,"956":true,"975":true,"982":true,"997":true,"1003":true,"1010":true,"1013":true,"1021":true,"1025":true,"1089":true,"1134":true,"1148":true,"1179":true,"1191":true,"1195":true,"1197":true,"1202":true,"1217":true,"1218":true,"1228":true,"1247":true,"1298":true,"1300":true,"1308":true,"1325":true,"1364":true,"1385":true,"1391":true,"1392":true,"1419":true,"1423":true,"1434":true,"1438":true,"1445":true,"1450":true,"1467":true,"1468":true,"1475":true,"1481":true,"1486":true,"1505":true,"1507":true,"1528":true,"1532":true,"1548":true,"1550":true,"1569":true,"1581":true,"1582":true,"1587":true,"1595":true,"1603":true,"1609":true,"1647":true,"1648":true,"1685":true,"1707":true,"1737":true,"1745":true,"1749":true,"1757":true,"1762":true,"1766":true,"1787":true,"1790":true,"1793":true,"1795":true,"1804":true,"1822":true,"1823":true,"1827":true,"1828":true,"1832":true,"1833":true,"1834":true,"1836":true,"1839":true,"1840":true,"1841":true,"1845":true,"1873":true,"1875":true,"1876":true,"1877":true,"1890":true,"1891":true,"1892":true,"1971":true,"1979":true,"2002":true,"2004":true,"2010":true,"2018":true,"2072":true,"2085":true,"2126":true,"2133":true,"2152":true,"2166":true,"2174":true,"2185":true,"2191":true,"2193":true,"2252":true,"2283":true,"2295":true,"2307":true,"2337":true,"2371":true,"2402":true,"2453":true,"2494":true,"2495":true,"2497":true,"2498":true,"2515":true,"2518":true,"2525":true,"2532":true,"2562":true,"2585":true,"2591":true,"2595":true,"2630":true,"2631":true,"2637":true,"2649":true,"2654":true,"2659":true,"2671":true,"2680":true,"2691":true,"2700":true,"2718":true,"2750":true,"2766":true,"2792":true,"2816":true,"2821":true,"2825":true,"2832":true,"2849":true,"2856":true,"2867":true,"2887":true,"2920":true,"2924":true,"2930":true,"2935":true,"2936":true,"2939":true,"3015":true,"3016":true,"3017":true,"3020":true,"3023":true,"3027":true,"3029":true,"3030":true,"3031":true,"3033":true,"3035":true,"3036":true,"3039":true,"3042":true,"3055":true,"3062":true,"3069":true,"3076":true,"3077":true,"3078":true,"3079":true,"3080":true,"3083":true,"3091":true,"3117":true,"3123":true,"3191":true,"3192":true,"3197":true,"3198":true,"3204":true,"3208":true,"3209":true,"3226":true,"3234":true,"3235":true,"3236":true,"3237":true,"3239":true,"3240":true,"3241":true,"3242":true,"3243":true,"3244":true,"3245":true,"3247":true,"3249":true,"3250":true,"3251":true,"3253":true,"3254":true,"3255":true,"3261":true,"3310":true,"3341":true,"3342":true,"3343":true,"3425":true,"3534":true,"3562":true,"3602":true,"3614":true,"3666":true,"3686":true,"3694":true,"3703":true,"3704":true,"3709":true,"3755":true,"3756":true,"3767":true,"3800":true,"3815":true,"3817":true,"3821":true,"3834":true,"3851":true,"3854":true,"3863":true,"3872":true,"3878":true,"3965":true,"3972":true,"3973":true,"3976":true,"3980":true,"3981":true,"3982":true,"3983":true,"3985":true,"3990":true,"3991":true,"3992":true,"3996":true,"3997":true,"3998":true,"3999":true,"4001":true,"4002":true,"4037":true,"4057":true,"4060":true,"4135":true,"4136":true,"4138":true,"4139":true,"4140":true,"4141":true,"4147":true,"4155":true,"4156":true,"4157":true,"4158":true,"4163":true,"4170":true,"4173":true,"4192":true,"4259":true,"4260":true,"4262":true,"4280":true,"4282":true,"4290":true,"4304":true,"4319":true,"4320":true,"4357":true,"4393":true,"4401":true,"4403":true,"4405":true,"4521":true,"4522":true,"4524":true,"4525":true,"4537":true,"4551":true,"4587":true,"4622":true,"4661":true,"4682":true,"4689":true,"4784":true,"4791":true,"4805":true,"4876":true,"4883":true,"4903":true,"4907":true,"4970":true,"4982":true,"5025":true,"5031":true,"5045":true,"5071":true,"5082":true,"5111":true,"5134":true,"5151":true,"5152":true,"5196":true,"5199":true,"5215":true,"5229":true,"5235":true,"5244":true,"5257":true,"5265":true,"5266":true,"5280":true,"5282":true,"5290":true,"5302":true,"5318":true,"5319":true,"5321":true,"5322":true,"5324":true,"5327":true,"5328":true,"5329":true,"5332":true,"5390":true,"5391":true,"5392":true,"5393":true,"5414":true,"5478":true,"5490":true,"5493":true,"5498":true,"5513":true,"5577":true,"5626":true,"5652":true,"5666":true,"5674":true,"5705":true,"5706":true,"5708":true,"5710":true,"5731":true,"5736":true,"5773":true,"5774":true,"5782":true,"5783":true,"5785":true,"5786":true,"5787":true,"5792":true,"5793":true,"5829":true,"5839":true,"5840":true,"5841":true,"5842":true,"5844":true,"5848":true,"5852":true,"5855":true,"5856":true,"5880":true,"5886":true,"5889":true,"5890":true,"5891":true,"5893":true,"5894":true,"5895":true,"6031":true,"6063":true,"6078":true,"6080":true,"6081":true,"6082":true,"6085":true,"6086":true,"6087":true,"6088":true,"6091":true,"6094":true,"6096":true,"6099":true,"6100":true,"6101":true,"6122":true,"6125":true,"6130":true,"6132":true,"6161":true,"6163":true,"6188":true,"6205":true,"6212":true,"6254":true,"6376":true,"6387":true,"6455":true,"6464":true,"6486":true,"6557":true,"6578":true,"6586":true,"6587":true,"6593":true,"6599":true,"6605":true,"6611":true,"6655":true,"6681":true,"6715":true,"6722":true,"6723":true,"6724":true,"6736":true,"6738":true,"6741":true,"6747":true,"6749":true,"6750":true,"6752":true,"6756":true,"6848":true,"6895":true,"6916":true,"6927":true,"7018":true,"7037":true,"7038":true,"7040":true,"7041":true,"7055":true,"7079":true,"7161":true,"7163":true,"7210":true,"7227":true,"7291":true,"7310":true,"7313":true,"7332":true,"7341":true,"7342":true,"7343":true,"7351":true,"7380":true,"7428":true,"7430":true,"7442":true,"7444":true,"7466":true,"7492":true,"7496":true,"7503":true,"7531":true,"7563":true,"7564":true,"7571":true,"7574":true,"7575":true,"7586":true,"7587":true,"7604":true,"7653":true,"7733":true,"7748":true,"7811":true,"7861":true,"7887":true,"7893":true,"7922":true,"7929":true,"7984":true,"7985":true,"7998":true,"8034":true,"8042":true,"8046":true,"8053":true,"8085":true,"8087":true,"8130":true,"8134":true,"8165":true,"8167":true,"8177":true,"8211":true,"8223":true,"8226":true,"8244":true,"8264":true,"8265":true,"8267":true,"8269":true,"8282":true,"8335":true,"8340":true,"8351":true,"8368":true,"8373":true,"8375":true,"8416":true,"8418":true,"8436":true,"8442":true,"8445":true,"8446":true,"8449":true,"8450":true,"8451":true,"8452":true,"8453":true,"8454":true,"8455":true,"8456":true,"8457":true,"8458":true,"8459":true,"8460":true,"8461":true,"8462":true,"8463":true,"8465":true,"8467":true,"8468":true,"8469":true,"8470":true,"8477":true,"8480":true,"8481":true,"8544":true,"8556":true,"8570":true,"8572":true,"8596":true,"8602":true,"8607":true,"8647":true,"8680":true,"8688":true,"8714":true,"8805":true,"8844":true,"8849":true,"8856":true,"8864":true,"8868":true,"8874":true,"8882":true,"8921":true,"8925":true,"8929":true,"8930":true,"8934":true,"8935":true,"8968":true,"8973":true,"8974":true,"9011":true,"9012":true,"9013":true,"9014":true,"9015":true,"9016":true,"9017":true,"9018":true,"9041":true,"9058":true,"9074":true,"9075":true,"9076":true,"9077":true,"9086":true,"9126":true,"9155":true,"9172":true,"9199":true,"9218":true,"9235":true,"9237":true,"9246":true,"9247":true,"9254":true,"9255":true,"9266":true,"9304":true,"9337":true,"9338":true,"9392":true,"9445":true,"9464":true,"9492":true,"9576":true,"9605":true,"9674":true,"9677":true,"9684":true,"9685":true,"9688":true,"9689":true,"9723":true,"9766":true,"9802":true,"9809":true,"9831":true,"9836":true,"9918":true,"9919":true,"9944":true,"9961":true,"10003":true,"10052":true,"10058":true,"10102":true,"10155":true,"10187":true,"10194":true,"10196":true,"10211":true,"10254":true,"10275":true,"10361":true,"10445":true,"10450":true,"10461":true,"10462":true,"10463":true,"10464":true,"10466":true,"10467":true,"10468":true,"10501":true,"10517":true,"10529":true,"10583":true,"10590":true,"10591":true,"10592":true,"10593":true,"10594":true,"10606":true,"10615":true,"10627":true,"10647":true,"10660":true,"10669":true,"10687":true,"10702":true,"10729":true,"10760":true,"10793":true,"10795":true,"10802":true,"10827":true,"10828":true,"10845":true,"10852":true,"10862":true,"10873":true,"10881":true,"10938":true,"10977":true,"10992":true,"11028":true,"11057":true,"11109":true,"11181":true,"11233":true,"11254":true,"11257":true,"11272":true,"11285":true,"11291":true,"11295":true,"11296":true,"11301":true,"11313":true,"11314":true,"11319":true,"11321":true,"11324":true,"11344":true,"11345":true,"11346":true,"11347":true,"11348":true,"11349":true,"11361":true,"11366":true,"11375":true,"11379":true,"11439":true,"11452":true,"11483":true,"11491":true,"11492":true,"11508":true,"11532":true,"11539":true,"11641":true,"11656":true,"11680":true,"11744":true,"11745":true,"11746":true,"11754":true,"11758":true,"11778":true,"11793":true,"11808":true,"11867":true,"11887":true,"12007":true,"12011":true,"12013":true,"12018":true,"12038":true,"12039":true,"12040":true,"12041":true,"12042":true,"12065":true,"12081":true,"12085":true,"12088":true,"12090":true,"12091":true,"12093":true,"12096":true,"12097":true,"12099":true,"12100":true,"12101":true,"12135":true,"12138":true,"12139":true,"12142":true,"12143":true,"12144":true,"12146":true,"12147":true,"12148":true,"12149":true,"12150":true,"12162":true,"12173":true,"12272":true,"12277":true,"12278":true,"12280":true,"12283":true,"12313":true,"12369":true,"12374":true,"12376":true,"12377":true,"12378":true,"12379":true,"12380":true,"12381":true,"12382":true,"12383":true,"12400":true,"12405":true,"12424":true,"12459":true,"12527":true,"12546":true,"12599":true,"12645":true,"12700":true,"12707":true,"12749":true,"12845":true,"12855":true,"12881":true,"12882":true,"12897":true,"12899":true,"12904":true,"12959":true,"12965":true,"12999":true,"13000":true,"13001":true,"13018":true,"13050":true,"13052":true,"13053":true,"13054":true,"13055":true,"13056":true,"13057":true,"13058":true,"13059":true,"13060":true,"13061":true,"13062":true,"13063":true,"13065":true,"13066":true,"13067":true,"13070":true,"13104":true,"13105":true,"13195":true,"13238":true,"13253":true,"13300":true,"13340":true,"13341":true,"13373":true,"13376":true,"13383":true,"13395":true,"13412":true,"13437":true,"13438":true,"13445":true,"13461":true,"13474":true,"13478":true,"13487":true,"13489":true,"13504":true,"13561":true,"13573":true,"13588":true,"13601":true,"13603":true,"13622":true,"13624":true,"13627":true,"13743":true,"13770":true,"13813":true,"13827":true,"13844":true,"13845":true,"13846":true,"13847":true,"13897":true,"13898":true,"13899":true,"13910":true,"13911":true,"13914":true,"13915":true,"13975":true,"13979":true,"13981":true,"13997":true,"14000":true,"14002":true,"14019":true,"14032":true,"14037":true,"14057":true,"14114":true,"14144":true,"14151":true,"14162":true,"14184":true,"14223":true,"14235":true,"14272":true,"14285":true,"14286":true,"14287":true,"14290":true,"14296":true,"14325":true,"14349":true,"14392":true,"14403":true,"14412":true,"14414":true,"14417":true,"14442":true,"14447":true,"14455":true,"14503":true,"14510":true,"14530":true,"14551":true,"14597":true,"14608":true,"14609":true,"14610":true,"14611":true,"14615":true,"14672":true,"14692":true,"14697":true,"14700":true,"14701":true,"14702":true,"14703":true,"14704":true,"14705":true,"14706":true,"14707":true,"14708":true,"14709":true,"14710":true,"14711":true,"14726":true,"14738":true,"14739":true,"14764":true,"14775":true,"14777":true,"14786":true,"14809":true,"14810":true,"14811":true,"14812":true,"14813":true,"14829":true,"14835":true,"14836":true,"14841":true,"14899":true,"14901":true,"14902":true,"14904":true,"14907":true,"14911":true,"14912":true,"14913":true,"14915":true,"14984":true,"14999":true,"15014":true,"15039":true,"15079":true,"15082":true,"15184":true,"15186":true,"15187":true,"15230":true,"15235":true,"15249":true,"15265":true,"15266":true,"15267":true,"15270":true,"15271":true,"15275":true,"15278":true,"15279":true,"15280":true,"15282":true,"15286":true,"15322":true,"15337":true,"15351":true,"15398":true,"15399":true,"15400":true,"15401":true,"15402":true,"15404":true,"15405":true,"15409":true,"15413":true,"15415":true,"15416":true,"15417":true,"15418":true,"15419":true,"15420":true,"15421":true,"15422":true,"15423":true,"15424":true,"15425":true,"15428":true,"15430":true,"15434":true,"15436":true,"15438":true,"15440":true,"15441":true,"15443":true,"15446":true,"15447":true,"15448":true,"15450":true,"15451":true,"15456":true,"15506":true,"15507":true,"15521":true,"15553":true,"15584":true,"15639":true,"15641":true,"15667":true,"15738":true,"15740":true,"15761":true,"15774":true,"15777":true,"15778":true,"15779":true,"15781":true,"15782":true,"15786":true,"15797":true,"15798":true,"15799":true,"15803":true,"15804":true,"15915":true,"15929":true,"15930":true,"15980":true,"16044":true,"16052":true,"16058":true,"16132":true,"16144":true,"16160":true,"16172":true,"16245":true,"16307":true,"16316":true,"16339":true,"16340":true,"16394":true,"16395":true,"16396":true,"16397":true,"16398":true,"16399":true,"16401":true,"16402":true,"16403":true,"16458":true,"16516":true,"16521":true,"16565":true,"16656":true,"16680":true,"16681":true,"16724":true,"16742":true,"16743":true,"16744":true,"16745":true,"16746":true,"16747":true,"16748":true,"16753":true,"16754":true,"16755":true,"16756":true,"16774":true,"16775":true,"16813":true,"16849":true,"16852":true,"16858":true,"16917":true,"16947":true,"16948":true,"16971":true,"16987":true,"16992":true,"17045":true,"17076":true,"17127":true,"17212":true,"17219":true,"17245":true,"17248":true,"17249":true,"17250":true,"17273":true,"17295":true,"17300":true,"17303":true,"17333":true,"17345":true,"17367":true,"17368":true,"17375":true,"17396":true,"17407":true,"17417":true,"17430":true,"17437":true,"17458":true,"17459":true,"17557":true,"17605":true,"17618":true,"17619":true,"17620":true,"17660":true,"17716":true,"17779":true,"17796":true,"17799":true,"17809":true,"17829":true,"17830":true,"17831":true,"17832":true,"17833":true,"17941":true,"17996":true,"18021":true,"18062":true,"18063":true,"18064":true,"18094":true,"18130":true,"18163":true,"18164":true,"18165":true,"18170":true,"18187":true,"18281":true,"18383":true,"18439":true,"18440":true,"18441":true,"18442":true,"18444":true,"18517":true,"18518":true,"18519":true,"18520":true,"18521":true,"18522":true,"18523":true,"18524":true,"18527":true,"18528":true,"18530":true,"18531":true,"18532":true,"18533":true,"18535":true,"18536":true,"18537":true,"18538":true,"18542":true,"18544":true,"18575":true,"18579":true,"18580":true,"18584":true,"18591":true,"18615":true,"18625":true,"18626":true,"18629":true,"18632":true,"18633":true,"18672":true,"18713":true,"18714":true,"18735":true,"18754":true,"18771":true,"18782":true,"18797":true,"18800":true,"18801":true,"18804":true,"18824":true,"18842":true,"18845":true,"18870":true,"18871":true,"18872":true,"18875":true,"18881":true,"18895":true,"18898":true,"18988":true,"19020":true,"19021":true,"19022":true,"19023":true,"19024":true,"19025":true,"19098":true,"19100":true,"19137":true,"19138":true,"19139":true,"19141":true,"19142":true,"19144":true,"19155":true,"19185":true,"19239":true,"19240":true,"19280":true,"19290":true,"19291":true,"19292":true,"19293":true,"19294":true,"19295":true,"19299":true,"19301":true,"19303":true,"19306":true,"19307":true,"19309":true,"19310":true,"19311":true,"19314":true,"19351":true,"19352":true,"19358":true,"19399":true,"19406":true,"19426":true,"19447":true,"19451":true,"19452":true,"19454":true,"19458":true,"19466":true,"19475":true,"19507":true,"19528":true,"19551":true,"19555":true,"19556":true,"19558":true,"19559":true,"19561":true,"19562":true,"19563":true,"19565":true,"19566":true,"19575":true,"19577":true,"19578":true,"19580":true,"19583":true,"19584":true,"19585":true,"19586":true,"19587":true,"19589":true,"19590":true,"19591":true,"19592":true,"19593":true,"19594":true,"19595":true,"19596":true,"19597":true,"19598":true,"19599":true,"19600":true,"19619":true,"19620":true,"19621":true,"19622":true,"19623":true,"19655":true,"19661":true,"19687":true,"19735":true,"19746":true,"19750":true,"19761":true,"19835":true,"19845":true,"19846":true,"19849":true,"19851":true,"19864":true,"19865":true,"19876":true,"19905":true,"19928":true,"19932":true,"19960":true,"20027":true,"20030":true,"20031":true,"20034":true,"20038":true,"20039":true,"20041":true,"20043":true,"20044":true,"20046":true,"20048":true,"20050":true,"20054":true,"20055":true,"20056":true,"20057":true,"20058":true,"20078":true,"20080":true,"20088":true,"20110":true,"20121":true,"20154":true,"20175":true,"20181":true,"20182":true,"20183":true,"20185":true,"20192":true,"20195":true,"20197":true,"20218":true,"20221":true,"20232":true,"20300":true,"20301":true,"20310":true,"20328":true,"20351":true,"20372":true,"20464":true,"20469":true,"20470":true,"20471":true,"20472":true,"20512":true,"20516":true,"20518":true,"20604":true,"20605":true,"20607":true,"20710":true,"20773":true,"20774":true,"20838":true,"20869":true,"20884":true,"20896":true,"20902":true,"20903":true,"20955":true,"20958":true,"20959":true,"20962":true,"20963":true,"20964":true,"20965":true,"20970":true,"20971":true,"20974":true,"20975":true,"20977":true,"20978":true,"20982":true,"20988":true,"20989":true,"20991":true,"20992":true,"20993":true,"20994":true,"20996":true,"20998":true,"20999":true,"21000":true,"21001":true,"21002":true,"21003":true,"21004":true,"21005":true,"21007":true,"21008":true,"21009":true,"21010":true,"21012":true,"21014":true,"21015":true,"21016":true,"21017":true,"21018":true,"21019":true,"21020":true,"21021":true,"21022":true,"21023":true,"21024":true,"21025":true,"21026":true,"21027":true,"21028":true,"21031":true,"21032":true,"21033":true,"21034":true,"21035":true,"21036":true,"21037":true,"21038":true,"21039":true,"21040":true,"21041":true,"21043":true,"21044":true,"21045":true,"21046":true,"21047":true,"21048":true,"21050":true,"21051":true,"21052":true,"21053":true,"21054":true,"21055":true,"21056":true,"21057":true,"21058":true,"21059":true,"21060":true,"21061":true,"21062":true,"21064":true,"21065":true,"21066":true,"21067":true,"21068":true,"21069":true,"21070":true,"21071":true,"21072":true,"21073":true,"21074":true,"21075":true,"21076":true,"21077":true,"21078":true,"21079":true,"21080":true,"21082":true,"21083":true,"21084":true,"21086":true,"21088":true,"21089":true,"21090":true,"21091":true,"21093":true,"21094":true,"21095":true,"21096":true,"21097":true,"21098":true,"21099":true,"21100":true,"21101":true,"21102":true,"21103":true,"21104":true,"21106":true,"21107":true,"21108":true,"21109":true,"21110":true,"21111":true,"21112":true,"21113":true,"21114":true,"21116":true,"21117":true,"21118":true,"21119":true,"21121":true,"21122":true,"21123":true,"21124":true,"21125":true,"21126":true,"21127":true,"21128":true,"21129":true,"21130":true,"21131":true,"21132":true,"21133":true,"21135":true,"21136":true,"21137":true,"21139":true,"21140":true,"21141":true,"21142":true,"21143":true,"21144":true,"21145":true,"21146":true,"21147":true,"21149":true,"21150":true,"21151":true,"21152":true,"21153":true,"21154":true,"21156":true,"21157":true,"21158":true,"21159":true,"21160":true,"21161":true,"21163":true,"21164":true,"21165":true,"21166":true,"21167":true,"21168":true,"21169":true,"21171":true,"21172":true,"21173":true,"21174":true,"21175":true,"21176":true,"21177":true,"21178":true,"21179":true,"21181":true,"21182":true,"21183":true,"21184":true,"21185":true,"21187":true,"21189":true,"21190":true,"21191":true,"21192":true,"21194":true,"21195":true,"21196":true,"21197":true,"21198":true,"21199":true,"21200":true,"21202":true,"21204":true,"21205":true,"21206":true,"21207":true,"21208":true,"21209":true,"21210":true,"21211":true,"21212":true,"21213":true,"21215":true,"21216":true,"21217":true,"21218":true,"21219":true,"21220":true,"21221":true,"21222":true,"21223":true,"21225":true,"21226":true,"21227":true,"21228":true,"21231":true,"21232":true,"21233":true,"21234":true,"21235":true,"21236":true,"21237":true,"21238":true,"21240":true,"21241":true,"21243":true,"21245":true,"21246":true,"21247":true,"21248":true,"21249":true,"21250":true,"21251":true,"21252":true,"21253":true,"21254":true,"21255":true,"21256":true,"21258":true,"21259":true,"21260":true,"21261":true,"21262":true,"21263":true,"21264":true,"21265":true,"21266":true,"21267":true,"21268":true,"21269":true,"21270":true,"21271":true,"21272":true,"21273":true,"21274":true,"21275":true,"21276":true,"21278":true,"21279":true,"21280":true,"21281":true,"21282":true,"21511":true,"21534":true,"21536":true,"21539":true,"21540":true,"21542":true,"21547":true,"21610":true,"21611":true,"21621":true,"21646":true,"21686":true,"21687":true,"21688":true,"21689":true,"21690":true,"21691":true,"21692":true,"21693":true,"21694":true,"21696":true,"21746":true,"21816":true,"21855":true,"21898":true,"21910":true,"21915":true,"21917":true,"21919":true,"21920":true,"21921":true,"21923":true,"21924":true,"21958":true,"21959":true,"21962":true,"21966":true,"21971":true,"21972":true,"21975":true,"22019":true,"22026":true,"22032":true,"22050":true,"22057":true,"22077":true,"22089":true,"22090":true,"22091":true,"22093":true,"22094":true,"22097":true,"22100":true,"22102":true,"22119":true,"22159":true,"22164":true,"22251":true,"22271":true,"22372":true,"22383":true,"22389":true,"22390":true,"22391":true,"22392":true,"22393":true,"22396":true,"22398":true,"22399":true,"22413":true,"22438":true,"22447":true,"22470":true,"22493":true,"22502":true,"22504":true,"22532":true,"22533":true,"22534":true,"22535":true,"22543":true,"22654":true,"22659":true,"22664":true,"22709":true,"22762":true,"22785":true,"22806":true,"22817":true,"22818":true,"22845":true,"22882":true,"22883":true,"22884":true,"22885":true,"22886":true,"22888":true,"22891":true,"22894":true,"22915":true,"22917":true,"22933":true,"22935":true,"22939":true,"22941":true,"22942":true,"22948":true,"22951":true,"23039":true,"23141":true,"23180":true,"23197":true,"23205":true,"23233":true,"23252":true,"23280":true,"23314":true,"23317":true,"23318":true,"23319":true,"23327":true,"23342":true,"23343":true,"23344":true,"23345":true,"23347":true,"23348":true,"23349":true,"23358":true,"23432":true,"23434":true,"23488":true,"23523":true,"23538":true,"23583":true,"23602":true,"23613":true,"23618":true,"23630":true,"23698":true,"23739":true,"23754":true,"23756":true,"23757":true,"23767":true,"23770":true,"23771":true,"23826":true,"23836":true,"23837":true,"23852":true,"23870":true,"23883":true,"23889":true,"23890":true,"23891":true,"23892":true,"23893":true,"23895":true,"23907":true,"23974":true,"23991":true,"23999":true,"24010":true,"24020":true,"24039":true,"24063":true,"24066":true,"24067":true,"24075":true,"24081":true,"24119":true,"24126":true,"24171":true,"24207":true,"24251":true,"24265":true,"24267":true,"24285":true,"24290":true,"24294":true,"24296":true,"24299":true,"24302":true,"24305":true,"24320":true,"24331":true,"24335":true,"24339":true,"24357":true,"24358":true,"24372":true,"24379":true,"24386":true,"24415":true,"24440":true,"24461":true,"24492":true,"24520":true,"24563":true,"24595":true,"24596":true,"24609":true,"24619":true,"24627":true,"24630":true,"24632":true,"24654":true,"24670":true,"24672":true,"24673":true,"24751":true,"24839":true,"24891":true,"24908":true,"24948":true,"24950":true,"24959":true};
+            function drawBlocks(){
+            	d3.csv('../../data/re_blocks.csv', function(error, data){
+	            	data = processData(data);
+            		d_blocks = data;
+
+            		d_filter_blocks = d_blocks.filter(function(d,i){
+            			if(i in filters){
+            				return true;
+            			}else{
+            				return false;
+            			}
+            		});
+
+	            	background.append('g').attr('class', 're_blocks').selectAll('path').data(d_filter_blocks).enter().append('path')
+	            		.attr('d', function(d,i){
+	            			return path(d.json);
+	            		});
+
+	            	draw();
+
+	            });
+            }
+
+
+
+            function drawWater(){
+            	d3.json('../../data/water.geojson', function(error, data){
+
+            		d_water = data;
+
+            		/*svg.append('g').attr('class','water').selectAll('path').data(data.features.filter(function(d,i){
+            			if(d.geometry.type == "Point" || d.geometry.type == "MultiPoint"){
+            				return false;
+            			}else{
+            				return true;
+            			}
+            		})).enter().append('path')
+            			.style('fill', function(d,i){
+            				if(d.geometry.type != "LineString" && d.geometry.type != "MultiLineString"){
+	            				return "rgba(213,236,245,1)";
+            				}else{
+            					return "transparent";
+            				}
+            			})
+            			.style('stroke', function(d,i){
+            				if(d.geometry.type == "LineString" || d.geometry.type == "MultiLineString"){
+	            				return "rgba(213,236,245,1)";
+            				}else{
+            					return "transparent";
+            				}
+            			})
+            			.attr('d', path);*/
+
+            		drawBlocks();
+            	});
+            }
+
+            function drawGreen(){
+            	d3.json('../../data/parks.topojson', function(error, data){
+
+            		d_green = data;
+
+            		/*svg.append('g').attr('class','green').selectAll('path').data(topojson.feature(data, data.objects.parks).features.filter(function(d,i){
+            			if(d.geometry.type == "Point" || d.geometry.type == "MultiPoint"){
+            				return false;
+            			}else{
+            				return true;
+            			}
+            		})).enter().append('path')
+            			.style('fill', function(d,i){
+            				return "rgba(227,245,213,1)";
+            			})
+            			.style('stroke', function(d,i){
+        					return "transparent";
+            			})
+            			.attr('d', path);
+
+            		svg.append('rect').attr('id', 'overlay').attr('x',0).attr('y',0).attr('width',width).attr('height',height)
+            			.attr('clip-path', 'url(#berlin)');*/
+
+            		drawWater();
+            	});
+            }
+
+            function drawBerlin(){
+            	d3.json('../../data/berlin.geojson', function(error, data){
+
+            		d_berlin = data;
+
+            		clip.append('path').attr('d', path(data.features[0]));
+
+            		drawGreen();
+            	});
+            }
+
+            function init(){
+				init_paths();
+            }
+
+            var doy = [], segments = [];
+
+            function init_paths(){
+	            d3.csv('../../data/2015.csv', function(error, data){
+	            	data = processData(data);
+
+	            	//Check which pathes are inside the bounding box
+	            	/*var prev = null;
+	            	data = data.filter(function(d){
+	            		var b = {
+	            			x:{
+	            				min:10,
+	            				max:16
+	            			},
+	            			y:{
+	            				min:48,
+	            				max:56
+	            			}
+	            		};
+
+	            		var outside = false;
+
+	            		if(prev != d.date_part){
+	            			prev = d.date_part;
+	            			doy.push(d.date_part);
+	            		}
+
+	            		d.starttime = new Date(Date.parse(d.starttime));
+
+	            		d.json.coordinates.forEach(function(d,i){
+	            			if(d[0] > b.x.max || d[0] < b.x.min){outside = true;}
+	            			if(d[1] > b.y.max || d[1] < b.y.min){outside = true;}
+	            		});
+
+	            		return !outside;
+	            	});*/
+
+	            	data = data.filter(function(d){
+	            		if(d.date_part == the_doy){
+	            			return true;
+	            		}else{
+	            			return false;
+	            		}
+	            	});
+
+	            	var features = [];
+
+	            	full_distance = 0;
+
+	            	data.forEach(function(d,i){
+						d.feature = turf.feature(d.json);
+						d.buffered = turf.buffer(d.feature, 1, "kilometers");
+						d.centroid = turf.centroid(d.feature);
+						d.distance = turf.lineDistance(d.feature);
+						features.push(d.feature);
+						full_distance += d.distance;
+	            	});
+
+	            	speed = full_distance/maxTime;
+
+	            	var collection = turf.featureCollection(features);
+	            	var centroid = turf.centroid(collection);
+
+	            	projection.center([centroid.geometry.coordinates[0],centroid.geometry.coordinates[1]]);
+
+	            	d_moves = data;
+
+	            	g = foreground.append('g');
+
+	            	var t_distance = 0;
+
+	            	//Extract lines and store them in individual segments
+	            	data.forEach(function(d,i){
+						for(var j = 0; j<d.json.coordinates.length-1; j++){
+	        				//d.json.coordinates
+	        				var l = distance(d.json.coordinates[j], d.json.coordinates[j+1]),
+								c1 = projection(d.json.coordinates[j]),
+								c2 = projection(d.json.coordinates[j+1]);
+
+							var t_dist = turf.distance(turf.point(d.json.coordinates[j]),turf.point(d.json.coordinates[j+1]),"kilometers");
+
+							segments.push({
+								x1:c1[0],
+								y1:c1[1],
+								x2:c2[0],
+								y2:c2[1],
+								seq:t_distance,
+								seq_time:t_distance/speed,
+								activity:d.activity,
+								distance:t_dist,
+								distance_time:t_dist/speed,
+							});
+
+							t_distance += t_dist;
+
+			            	g.append('line')
+			            		.attr('class', d.activity+" doy_"+d.date_part)
+			            		.attr('x1', c1[0])
+								.attr('y1', c1[1])
+								.attr('x2', c2[0])
+								.attr('y2', c2[1]);
+
+	        			}
+	            	});
+
+	            	background.append('path')
+	            		.attr('class', 'buffer')
+	            		.attr('d', path(turf.buffer(collection, 1, 'kilometers')));
+
+	            	marker = foreground.append('circle').attr('r', 10);
+
+	            	drawBerlin();
+
+		        });
+			}
+
+			function draw(){
+				time += 1;
+
+				segments.forEach(function(d,i){
+					if(time>d.seq_time && time<d.seq_time+d.distance_time){
+						var x = ((d.x2-d.x1)/d.distance_time * (time-d.seq_time))+d.x1;
+						var y = ((d.y2-d.y1)/d.distance_time * (time-d.seq_time))+d.y1;
+
+						//projection(center(projection.invert([x,y]));
+
+						marker
+							.attr('cx', x)
+							.attr('cy', y);
+					}
+				});
+
+				if (typeof window.callPhantom === 'function') {
+					if(time > end){
+						window.callPhantom({ msg: 'exit' });
+					}else{
+						window.callPhantom({ msg: 'render' });
+					}
+				}else{
+					if(time > maxTime){
+						console.log("End");
+					}else{
+						window.requestAnimationFrame(draw);						
+					}
+				}
+			}
+
+			if (typeof window.callPhantom === 'function') {
+				//
+			}else{
+				init();
+			}
+
+	    </script>
+	</body>
+</html>

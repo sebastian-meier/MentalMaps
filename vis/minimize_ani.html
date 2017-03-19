@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/jquery-1.11.1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path{
+                fill:rgba(0,0,0,0);
+                stroke:rgba(0,0,0,0.0);
+				stroke-linejoin: round;
+				stroke-linecap: round;
+				vector-effect: non-scaling-stroke;
+            }
+
+			path.hit{
+				fill:rgba(255,0,0,0.3);
+			}
+
+			line{
+				stroke:rgba(155,0,0,1);
+				stroke-linecap:round;
+			}
+
+			line.attractor{
+				stroke-width:3;
+				stroke:green;
+			}
+
+			line.distractor{
+				stroke-width:1px;
+				stroke:blue;
+			}
+
+			line.o1{
+				stroke:transparent;
+			}
+
+			line.o2{
+				stroke:transparent;
+			}
+
+			line.o2.intersect{
+				stroke:blue;
+			}
+
+			line.o1.intersect{
+				stroke:red;
+			}
+
+			path.walking{
+				stroke:rgb(221, 36, 114);
+			}
+
+			path.cycling{
+				stroke:rgb(24, 148, 201);
+			}
+
+			path.transport{
+				stroke:rgba(25, 182, 97, 0.5);
+			}
+
+			path.running{
+				stroke:rgb(214, 166, 22);
+			}
+
+			.overlay {
+				fill: none;
+				pointer-events: all;
+			}
+
+			circle{
+				fill:transparent;
+			}
+
+			circle.radius{
+				fill:transparent;
+				stroke:transparent;
+				stroke-weight:1;
+			}
+
+			rect{
+				fill:rgba(0,0,0,0.1);
+			}
+
+			svg{
+				/*border:2px solid #555;
+				margin-top:10px;*/
+			}
+
+			#button{
+				border-radius:5px;
+				border:2px solid black;
+				font-weight:bold;
+				text-align: center;
+				padding:8px 20px;
+				font-family:Helvetica, Arial, sans-serif;;
+				font-size:12px;
+				text-transform: uppercase;
+				float:left;
+				margin:10px;
+				background-color:#fff;
+				color:#000;
+				display:none;
+			}
+
+			#button:hover{
+				cursor:pointer;
+				background-color:#000;
+				color:#fff;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="button">
+			Toggle
+		</div>
+        <script type="text/javascript">
+
+        /*
+        most connected hull as starting point
+        distance between hulls
+        function for checking hull collisions (only those that could touch based on radius and distance)
+        function for moving hull
+        define root point(?)
+        find endpoints bring closer to next point
+        continue down to root point
+        */
+
+            var emergency = false,
+				border = 0,
+				state = false,
+				year="2015",
+				width=1920,
+    		    height=1080,
+				center = [13.353528,52.520212];
+				zoom = d3.behavior.zoom()
+					.translate([width / 2, height / 2])
+					.scale(280000)
+					.scaleExtent([100000, 1500000])
+					.on("zoom", zoomed),
+    		    projection = d3.geo.mercator()
+        			.precision(0.1)
+        			.center(center),
+                path = d3.geo.path()
+                	.projection(projection),
+				container = d3.select('body').append('svg').attr('width', width).attr('height', height)
+                svg = container.append("g"),
+				defs = svg.append("defs"),
+                map = svg.append("g"),
+                points = svg.append("g"),
+				centers = svg.append("g"),
+				intersections = svg.append("g"),
+				hulls,
+				patterns = [],
+                backgrounds = [];
+
+			svg.append("rect")
+				.attr("class", "overlay")
+				.attr("width", width)
+				.attr("height", height);
+
+			svg
+			    .call(zoom)
+			    .call(zoom.event);
+
+			function zoomed() {
+				projection
+					.translate(zoom.translate())
+					.scale(zoom.scale());
+
+				/*map.selectAll("path")
+					.attr("d", path);
+
+				points.selectAll("g").selectAll("line")
+					.attr('x1', function(d){ return projection(hulls[d.id_1])[0]; })
+					.attr('y1', function(d){ return projection(hulls[d.id_1])[1]; })
+					.attr('x2', function(d){ return projection(hulls[d.id_2])[0]; })
+					.attr('y2', function(d){ return projection(hulls[d.id_2])[1]; });*/
+
+				points.selectAll("path")
+					.attr("transform", ((state)?translator(d):""))
+					.style('opacity',0)
+					.attr("d", function(d){ return path(d.path); });
+
+				centers.selectAll('circle')
+					.attr("transform", ((state)?translator(d):""))
+					.attr('cx', function(d){ return projection([d.x, d.y])[0]; })
+					.attr('cy', function(d){ return projection([d.x, d.y])[1]; });
+
+				centers.selectAll('circle.radius')
+					.attr('r', function(d){
+						return projectRadii([d.path.coordinates[0][d.furthest]], [d.x, d.y]);
+					});
+
+				if(svgHulls){
+					intersections.selectAll("*").remove();
+					var pad = 50;
+					var pad_scale = 1500000;
+					var padding = pad/1500000 * projection.scale();
+					svgHulls.each(function(d, i) {
+	                    var t = d3.select(this);
+	                    var bb = t.node().getBoundingClientRect();
+
+						var d = t.datum();
+						var o = projection(d.pbb[0]);
+
+	                    patterns[i]
+	                        .attr('width', bb.width+padding)
+	                        .attr('height', bb.height+padding)
+							.attr('y', o[1]-padding/2)
+							.attr('x', o[0]-padding/2);
+
+	                    backgrounds[i]
+	                        .attr('width', bb.width+padding)
+	                        .attr('height', bb.height+padding);
+
+	                });
+				}
+
+			}
+
+			var hulls = [], hullData, linewidth, edges, cleanEdges = [], hullmap = {}, edgemap = {}, leafs = [], maxLevel, levels, hullKeys = [], hullAlpha = [], edgeKeys = [], edgeAlpha = [];
+			function init(){
+				d3.json('minimize_ani/hulls_2015.json', function(err, data){
+					hullData = data;
+					for(var i = 0; i<hullData.length; i++){
+						hullKeys.push(i);
+						hullAlpha.push(0);
+					}
+					function shuffle(a) {
+						var j, x, i;
+						for (i = a.length; i; i--) {
+							j = Math.floor(Math.random() * i);
+							x = a[i - 1];
+							a[i - 1] = a[j];
+							a[j] = x;
+						}
+					}
+					shuffle(hullKeys);
+
+					d3.json('minimize_ani/connections_not_same_0_2015.json', function(err, data){
+						edges = data;
+
+						for(var i in edges){
+							if(!(edges[i].id_1 in edgemap)){
+								edgemap[edges[i].id_1] = {}	;
+							}
+							edgemap[edges[i].id_1][edges[i].id_2] = edges[i].count;
+							if(!(edges[i].id_2 in edgemap)){
+								edgemap[edges[i].id_2] = {}	;
+							}
+							edgemap[edges[i].id_2][edges[i].id_1] = edges[i].count;
+						}
+
+						linewidth = d3.scale.linear()
+							.range([1,10])
+							.domain([
+								d3.min(data, function(d){return d.count;}),
+								d3.max(data, function(d){return d.count;})
+							]);
+
+						//Remove Hulls with no connections
+						var hasCon = {};
+						for(var i = 0; i<edges.length; i++){
+							if(edges[i].id_1 in hasCon){hasCon[edges[i].id_1]++;}else{ hasCon[edges[i].id_1] = 1;}
+							if(edges[i].id_2 in hasCon){hasCon[edges[i].id_2]++;}else{ hasCon[edges[i].id_2] = 1;}
+						}
+
+						var remove = [],central = false, centralmax = 0;
+						for(var i = 0; i<hullData.length; i++){
+							if(!(hullData[i].id in hasCon)){
+								remove.push(i);
+							}else{
+								hullData[i].count = hasCon[hullData[i].id];
+								if(hullData[i].count > centralmax){
+									centralmax = hullData[i].count;
+									central = hullData[i].id;
+								}
+							}
+						}
+
+						var removed = 0;
+						for(var i = 0; i<remove.length; i++){
+							hullData.splice((remove[i]-removed),1);
+							removed++;
+						}
+
+						for(var i = 0; i<hullData.length; i++){
+							hullmap[hullData[i].id] = i;
+							hulls[hullData[i].id] = [hullData[i].x, hullData[i].y];
+						}
+
+						hullData[hullmap[central]].level = 1;
+						leafs[1] = [central];
+						maxLevel = mapSubs([central], 2)-1;
+						levels = d3.scale.linear().range([0.2,1]).domain([1,maxLevel]);
+
+						for(var i = 0; i<edges.length; i++){
+							var exists = false;
+							for(var j = 0; j<cleanEdges.length; j++){
+								if(
+									(cleanEdges[j].id_1 == edges[i].id_1 && cleanEdges[j].id_2 == edges[i].id_2)||
+									(cleanEdges[j].id_1 == edges[i].id_2 && cleanEdges[j].id_2 == edges[i].id_1)){
+									exists = true;
+									cleanEdges[j].count += edges[i].count;
+								}
+							}
+							if(!exists){
+								cleanEdges.push(edges[i]);
+							}
+						}
+
+						//calculate the length of the edges (in normal projection)
+						cleanEdges.forEach(function(d,i){
+							d["dist"] = Math.sqrt(
+								(
+									Math.pow(
+										(
+											projection(hulls[d.id_2])[0] - projection(hulls[d.id_1])[0]
+										) 
+										, 2
+									) +
+									Math.pow(
+										(
+											projection(hulls[d.id_2])[1] - projection(hulls[d.id_1])[1]
+										) 
+										, 2
+									) 
+								)
+							);
+							edgeKeys.push(i);
+							edgeAlpha.push(0);
+						});
+
+						shuffle(edgeKeys);
+
+						draw();
+
+						processIterator = maxLevel;
+						setTimeout(processHulls, 2000);
+					});
+				});
+			}
+
+			var processIterator;
+			function processHulls(){
+				moveStuffAround(leafs[processIterator]);
+				//toggle(false);
+				if(processIterator>2){
+					processIterator--;
+					setTimeout(processHulls, 2000);
+				}else{
+					zoomed();
+					newPositionsString();
+
+					if (typeof window.callPhantom === 'function') {
+						window.callPhantom({ msg: 'render' });
+					}else{
+						window.requestAnimationFrame(animate);
+					}
+				}
+			}
+
+			var phase = 0,
+				step = 0,
+				substep = 0;
+
+			function animate(){
+				var nextPhase = false;
+				switch(phase){
+					case 0:
+						if(substep == 0 && step < hullAlpha.length){
+							hullAlpha[step] = 0.01;
+							step++;
+						}else if(substep == 0){
+							step++;
+						}
+
+						points.selectAll("path")
+							.style('opacity',function(d,i){
+								if(hullAlpha[i]>0){
+									var t = hullAlpha[i];
+									hullAlpha[i]+=0.01;
+									return hullAlpha[i];
+								}
+								return 0;
+							});
+
+						substep++;
+						if(substep == 50){
+							substep = 0;
+							if(step > hullAlpha.length){
+								nextPhase = true;
+							}
+						}
+					break;
+					case 1:
+						if(substep == 0 && step < edgeAlpha.length){
+							edgeAlpha[step] = 1;
+							step++;
+						}else if(substep == 0){
+							step++;
+						}
+
+						function calculateLine(sp1,sp2,perc,dist){
+							if(perc == 0){
+								return [[-100,-100],[-100,-100]];
+							}else{
+								var p1 = [-100,-100],
+									p2 = [-100,-100];
+
+								var pp1 = projection(hulls[sp1]),
+									pp2 = projection(hulls[sp2]);
+
+								p1 = pp1;
+
+								var steps = dist/5;
+
+								var x_dist = pp2[0]-pp1[0];
+								var y_dist = pp2[1]-pp1[1];
+
+								if(perc > steps){
+									perc = steps;
+								}
+
+								p2[0] = p1[0] + x_dist/steps * perc;
+								p2[1] = p1[1] + y_dist/steps * perc;
+
+								return [p1,p2];
+							}
+						}
+
+						points.selectAll('line')
+							.attr('stroke-width', function(d){ return linewidth(d.count);})
+							.attr('x1', function(d,i){ return calculateLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[0][0]; })
+							.attr('y1', function(d,i){ return calculateLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[0][1]; })
+							.attr('x2', function(d,i){ return calculateLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[1][0]; })
+							.attr('y2', function(d,i){ return calculateLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[1][1]; });
+
+						edgeAlpha.forEach(function(d,i){
+							if(d>0){
+								edgeAlpha[i]+=1;
+							}
+						});
+
+						substep++;
+						if(substep == 50){
+							substep = 0;
+							if(step > edgeAlpha.length){
+								nextPhase = true;
+							}
+						}
+					break;
+					case 2:
+						function calculateTranslate(d){
+							var t = translatorData(d);
+							return "translate("+(t[0]/100*step)+","+(t[1]/100*step)+")";
+						}
+
+						points.selectAll('path')
+							.attr("transform", function(d){ return calculateTranslate(d); });
+
+						function calculateTransLine(sp1,sp2,perc,dist){
+							var pp1 = projection(hulls[sp1]),
+								pp2 = projection(hulls[sp2]);
+
+							var t1 = translatorData(hullData[hullmap[sp1]]),
+								t2 = translatorData(hullData[hullmap[sp2]]);
+
+							var p1 = [(pp1[0] + t1[0]/100*step),(pp1[1] + t1[1]/100*step)],
+								p2 = [(pp2[0] + t2[0]/100*step),(pp2[1] + t2[1]/100*step)];
+
+							return [p1,p2];
+						}
+
+						points.selectAll('line')
+							.attr('stroke-width', function(d){ return linewidth(d.count);})
+							.attr('x1', function(d,i){ return calculateTransLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[0][0]; })
+							.attr('y1', function(d,i){ return calculateTransLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[0][1]; })
+							.attr('x2', function(d,i){ return calculateTransLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[1][0]; })
+							.attr('y2', function(d,i){ return calculateTransLine(d.id_1, d.id_2, edgeAlpha[i], d.dist)[1][1]; });
+
+
+						step++;
+						if(step > 100){
+							nextPhase = true;
+						}
+					break;
+					case 3:
+						points.selectAll('line')
+							.style('opacity', (100 - step)/100);
+
+						step++;
+						if(step > 150){
+							nextPhase = true;
+						}
+					break;
+				}
+
+				if(nextPhase){
+					step = 0;
+					substep = 0;
+					phase++;
+				}
+
+				if(phase > 3){
+					if (typeof window.callPhantom === 'function') {
+						window.callPhantom({ msg: 'exit' });
+					}else{
+						console.log("done");
+					}
+				}else{
+					if (typeof window.callPhantom === 'function') {
+						window.callPhantom({ msg: 'render' });
+					}else{
+						window.requestAnimationFrame(animate);
+					}
+				}
+
+			}
+
+			var svgHulls;
+
+			function draw(){
+				svgHulls = points.selectAll('path').data(hullData).enter().append('path')
+					.attr("transform", ((state)?translator(d):""))
+					.attr("id", function(d,i){ return "id"+d.id; })
+					.attr("title", function(d,i){ return "id:"+d.id+" , i:"+i; })
+					.attr("d", function(d){
+						return path(d.path);
+					})
+					.attr('class', 'hulls')
+					.style('fill', function(d){
+						return 'url(#pattern_'+d.id+')';
+					});
+
+				svgHulls.each(function(d, i) {
+                    patterns[i] = defs.append('pattern')
+    					.attr('id', 'pattern_'+d.id)
+                        .attr('width', 0)
+                        .attr('height', 0)
+                        .attr('y', 0)
+                        .attr('x', 0)
+    					.attr('patternUnits', 'userSpaceOnUse');
+
+    				backgrounds[i] = patterns[i].append('image')
+						.attr('width', 0)
+						.attr('height', 0)
+						.attr('xlink:href', 'tmp/building_cluster_'+year+'_'+d.id+'.png');
+				});
+
+				centers.selectAll('circle').data(hullData).enter().append('circle')
+					.attr("transform", ((state)?translator(d):""))
+					.attr('r', 2)
+					.attr('cx', function(d){ return projection([d.x, d.y])[0]; })
+					.attr('cy', function(d){ return projection([d.x, d.y])[1]; });
+
+				/*centers.selectAll('circle.radius').data(hullData).enter().append('circle')
+					.attr("transform", ((state)?translator(d):""))
+					.attr("class", "radius")
+					.attr("opacity", function(d){ return levels(d.level); })
+					.attr("stroke-width", function(d){ return levels(d.level)*5; })
+					.attr('r', function(d){
+						return projectRadii([d.path.coordinates[0][d.furthest]], [d.x, d.y]);
+					})
+					.attr('cx', function(d){ return projection([d.x, d.y])[0]; })
+					.attr('cy', function(d){ return projection([d.x, d.y])[1]; });*/
+
+				points.selectAll('line').data(cleanEdges).enter().append('line')
+					.attr('id',function(d){
+						return 'edge_'+d.id_1+"_"+d.id_2;
+					});
+
+				/*points.append('g').selectAll('line').data(edges).enter().append('line')
+					.attr('stroke-width', function(d){ return linewidth(d.count);})
+					.attr('x1', function(d){ return projection(hulls[d.id_1])[0]; })
+					.attr('y1', function(d){ return projection(hulls[d.id_1])[1]; })
+					.attr('x2', function(d){ return projection(hulls[d.id_2])[0]; })
+					.attr('y2', function(d){ return projection(hulls[d.id_2])[1]; });*/
+
+				//console.log(checkPolygoneIntersection(hullData[15],hullData[31]));
+			}
+
+			d3.select('#button').on('click', function(){
+				toggle(true);
+			});
+
+			//Include Offset in Position
+			
+			function toggle(switchstate){
+				if(switchstate){
+					state = !state;
+				}
+
+				points.selectAll('path').transition().delay(100).duration(1000)
+					.attr("transform", function(d){ return ((state)?translator(d):""); });
+
+				centers.selectAll('circle').transition().delay(100).duration(1000)
+					.attr("transform", function(d){ return ((state)?translator(d):""); });
+			}
+
+			function translator(d){
+				var p = projection([d.x,d.y]);
+				var o = projection([d.offset.x,d.offset.y]);
+				return "translate("+(o[0]-p[0])+" "+(o[1]-p[1])+")";
+			}
+
+			function translatorData(d){
+				var p = projection([d.x,d.y]);
+				var o = projection([d.offset.x,d.offset.y]);
+				return [(o[0]-p[0]),(o[1]-p[1])];
+			}
+
+			function moveStuffAround(objs){
+				var targets = {};
+				for(var i = 0; i<objs.length; i++){
+					//Find the closes obj on the next lower level
+					var level = hullData[hullmap[objs[i]]].level;
+					var kids = [];
+					for(var j in edgemap[objs[i]]){
+						if(hullData[hullmap[j]].level === (level-1)){
+							kids.push(j);
+						}
+					}
+					if(kids.length > 1){
+						//Multiple nodes with same lower level (find out closest)
+						var d = Number.MAX_VALUE, id = false;
+						for(var j in kids){
+							var p1 = projection([hullData[hullmap[kids[j]]].x, hullData[hullmap[kids[j]]].y]);
+							var p2 = projection([hullData[hullmap[objs[i]]].x, hullData[hullmap[objs[i]]].y]);
+							var dx = p1[0] - p2[0],
+			                    dy = p1[1] - p2[1];
+			                var td = Math.sqrt(dx * dx + dy * dy);
+							if(td<d){
+								d = td;
+								id = j;
+							}
+						}
+						kids = [kids[id]];
+					}else if(kids.length < 1){
+						console.log("shit");
+					}
+
+					if(!(kids[0] in targets)){
+						targets[kids[0]] = [];
+					}
+
+					var p1 = projection([hullData[hullmap[kids[0]]].x, hullData[hullmap[kids[0]]].y]);
+					var p2 = projection([hullData[hullmap[objs[i]]].x, hullData[hullmap[objs[i]]].y]);
+					var dx = p1[0] - p2[0],
+						dy = p1[1] - p2[1];
+					var d = Math.sqrt(dx * dx + dy * dy);
+
+					targets[kids[0]].push({
+						id:objs[i],
+						dist:d
+					});
+				}
+
+				for(var i in targets){
+					//For each kids.node order leafs by distance
+					targets[i].sort(compareByDist);
+
+					for(var j in targets[i]){
+						var p1 = projection([hullData[hullmap[i]].x, hullData[hullmap[i]].y]);
+						var p2 = projection([hullData[hullmap[targets[i][j].id]].x, hullData[hullmap[targets[i][j].id]].y]);
+
+						var dx = p2[0] - p1[0],
+							dy = p2[1] - p1[1];
+						var d = Math.sqrt(dx * dx + dy * dy);
+						var v = [dx/d, dy/d];
+
+						var r1 = projectRadii([hullData[hullmap[i]].path.coordinates[0][hullData[hullmap[i]].furthest]], [hullData[hullmap[i]].x, hullData[hullmap[i]].y]);
+						var r2 = projectRadii([hullData[hullmap[targets[i][j].id]].path.coordinates[0][hullData[hullmap[targets[i][j].id]].furthest]], [hullData[hullmap[targets[i][j].id]].x, hullData[hullmap[targets[i][j].id]].y]);
+
+						var nd = (r1+r2);
+
+						var op = projection.invert([(v[0]*nd+p1[0]), (v[1]*nd+p1[1])]);
+						updateOffset(targets[i][j].id, op);
+
+						var closeDif = 1.0;
+
+						if(checkAgainstPolygones(targets[i][j].id, i, true)){
+							//From here on move closer to the target until we hit something
+							while(checkAgainstPolygones(targets[i][j].id, i, true)){
+								if(emergency){return;}
+								nd+=closeDif;
+								op = projection.invert([(v[0]*nd+p1[0]), (v[1]*nd+p1[1])]);
+								updateOffset(targets[i][j].id, op);
+							}
+
+							//After hit, go one step back
+							nd-=closeDif;
+						}else{
+							//From here on move closer to the target until we hit something
+							while(!checkAgainstPolygones(targets[i][j].id, i, true)){
+								if(emergency){return;}
+								nd-=closeDif;
+								op = projection.invert([(v[0]*nd+p1[0]), (v[1]*nd+p1[1])]);
+								updateOffset(targets[i][j].id, op);
+							}
+
+							//After hit, go one step back
+							nd+=closeDif;
+						}
+
+						op = projection.invert([(v[0]*nd+p1[0]), (v[1]*nd+p1[1])]);
+						updateOffset(targets[i][j].id, op);
+
+						hullData[hullmap[i]].children.push(targets[i][j].id);
+					}
+				}
+			}
+
+			function updateOffset(id, op){
+				var oldp = [hullData[hullmap[id]].offset.x, hullData[hullmap[id]].offset.y];
+
+				var xdif = op[0]-oldp[0],
+					ydif = op[1]-oldp[1];
+
+
+				hullData[hullmap[id]].offset.x = op[0];
+				hullData[hullmap[id]].offset.y = op[1];
+
+				for(var i in hullData[hullmap[id]].children){
+					hullData[hullmap[ hullData[hullmap[id]].children[i] ]].offset.x += xdif;
+					hullData[hullmap[ hullData[hullmap[id]].children[i] ]].offset.y += ydif;
+				}
+			}
+
+			function getChildren(obj){
+				var children = [];
+				for(var i in obj.children){
+					children.push(obj.children[i]);
+					if(hullData[hullmap[obj.children[i]]].children.length>=1){
+						children = children.concat(getChildren(hullData[hullmap[obj.children[i]]]));
+					}
+				}
+				return children;
+			}
+
+			function checkAgainstPolygones(poly, id, includeOffset){
+				var result = false;
+
+				//flatten polygones
+				var group = [id];
+				group = group.concat(getChildren(hullData[hullmap[id]]));
+
+				for(var i in group){
+					if(group[i]!=poly){
+						var t = checkPolygoneIntersection(
+							hullData[hullmap[poly]],
+							hullData[hullmap[group[i]]],
+							includeOffset
+						);
+						if(t){
+							result = true;
+							return true;
+						}
+					}
+					for(var j in hullData[hullmap[poly]].children){
+						if(group[i] != hullData[hullmap[poly]].children[j]){
+							var t = checkPolygoneIntersection(
+								hullData[hullmap[hullData[hullmap[poly]].children[j]]],
+								hullData[hullmap[group[i]]],
+								includeOffset
+							);
+							if(t){
+								result = true;
+								return true;
+							}
+						}
+					}
+				}
+				return result;
+			}
+
+			function compareByDist(a, b) {
+				if (a.dist < b.dist) {
+					return -1;
+				}
+				if (a.dist > b.dist) {
+					return 1;
+				}
+				return 0;
+			}
+
+			function mapSubs(parents, level){
+				var kids = [];
+				if(!(level in leafs)){
+					leafs[level] = [];
+				}
+
+				for(var p in parents){
+					for(var i in edgemap[parents[p]]){
+						if(!hullData[hullmap[i]].level){
+							hullData[hullmap[i]].level = level;
+							leafs[level].push(i);
+							kids.push(i);
+						}
+					}
+				}
+
+				var tlevel = level;
+
+				if(kids.length>=1){
+					tlevel = mapSubs(kids, (level+1));
+				}
+
+				return tlevel;
+			}
+
+			function projectRadii(bb,centroid){
+				var d = 0;
+				var pcentroid = projection(centroid);
+				for(var i in bb){
+					var p = projection(bb[i]);
+					var dx = pcentroid[0] - p[0],
+	                    dy = pcentroid[1] - p[1];
+	                var td = Math.sqrt(dx * dx + dy * dy);
+					if(td>d){d=td;}
+				}
+				return d;
+			}
+
+			function checkPolygoneIntersection(o1, o2, includeOffset){
+				var result = false;
+
+				//first check if they are actually close enough for intersection to happen
+				var r1 = projectRadii([o1.path.coordinates[0][o1.furthest]], [o1.x, o1.y]);
+				var r2 = projectRadii([o2.path.coordinates[0][o2.furthest]], [o2.x, o2.y]);
+
+				var c1 = projection([o1.x, o1.y]);
+				var c2 = projection([o2.x, o2.y]);
+
+				if(includeOffset){
+					//offsets
+					var oo1 = projection([o1.offset.x,o1.offset.y]);
+					var oo2 = projection([o2.offset.x,o2.offset.y]);
+
+					var xoff1 = (oo1[0]-c1[0]),
+						yoff1 = (oo1[1]-c1[1]),
+						xoff2 = (oo2[0]-c2[0]),
+						yoff2 = (oo2[1]-c2[1]);
+
+
+					c1[0] += xoff1;
+					c1[1] += yoff1;
+
+					c2[0] += xoff2;
+					c2[1] += yoff2;
+				}
+
+				var dx = c1[0] - c2[0],
+					dy = c1[1] - c2[1];
+				var d = Math.sqrt(dx * dx + dy * dy);
+
+				if(d>r1+r2){
+					//too far away
+					return false;
+				}else{
+					var inside = isInside(o1, o2);
+					if(inside === 1){
+						if(isInsidePolygone(o1, o2)){
+							return true;
+						}
+					}else if(inside === 2){
+						if(isInsidePolygone(o2, o1)){
+							return true;
+						}
+					}
+
+					for(var i = 0; i<o1.path.coordinates[0].length; i++){
+
+						var p1 = projection(o1.path.coordinates[0][i]),
+							pp1 = projection(((i<(o1.path.coordinates[0].length-1))?o1.path.coordinates[0][i+1]:o1.path.coordinates[0][0]));
+
+						var xs1 = p1[0],
+							ys1 = p1[1],
+							xe1 = pp1[0],
+							ye1 = pp1[1];
+
+						if(includeOffset){
+							xs1 += xoff1;
+							xe1 += xoff1;
+							ys1 += yoff1;
+							ye1 += yoff1;
+						}
+
+						for(var j = 0; j<o2.path.coordinates[0].length; j++){
+
+							var p2 = projection(o2.path.coordinates[0][j]),
+								pp2 = projection(((j<(o2.path.coordinates[0].length-1))?o2.path.coordinates[0][j+1]:o2.path.coordinates[0][0]));
+
+							var xs2 = p2[0],
+								ys2 = p2[1],
+								xe2 = pp2[0],
+								ye2 = pp2[1];
+
+							if(includeOffset){
+								xs2 += xoff2;
+								xe2 += xoff2;
+								ys2 += yoff2;
+								ye2 += yoff2;
+							}
+
+							if(lineIntersect(xs1,ys1,xe1,ye1,xs2,ys2,xe2,ye2)){
+								return true;
+							}
+						}
+					}
+					return result;
+				}
+			}
+
+			var offsets = {};
+
+			function newPositionsString(){
+				points.selectAll('path').each(function(d){
+					var p = projection([d.x,d.y]);
+					var o = projection([d.offset.x,d.offset.y]);
+					offsets[d.id] = [(o[0]-p[0]),(o[1]-p[1])];
+				});
+
+				var json = [];
+
+				d3.json('minimize_ani/buildings_2015.json', function(err, data){
+					for(var i = 0; i<data.length; i++){
+						if(!(data[i].cluster in offsets)){
+							//console.log("not in offset", data[i].cluster);
+						}else{
+							//console.log("in offset", data[i].cluster);
+
+							var ox = offsets[data[i].cluster][0];
+							var oy = offsets[data[i].cluster][1];
+
+							/*for(var j = 0; j<data[i].path.coordinates.length; j++){
+								for(var k = 0; k<data[i].path.coordinates[j].length; k++){
+									for(var l = 0; l<data[i].path.coordinates[j][k].length; l++){
+										var p = projection(data[i].path.coordinates[j][k][l]);
+										data[i].path.coordinates[j][k][l] = [(p[0]+ox), (p[1]+oy)];
+									}
+								}
+							}*/
+
+							for(var k = 0; k<data[i].path.coordinates.length; k++){
+								for(var l = 0; l<data[i].path.coordinates[k].length; l++){
+									var p = projection(data[i].path.coordinates[k][l]);
+									data[i].path.coordinates[k][l] = [(p[0]+ox), (p[1]+oy)];
+								}
+							}
+
+							json.push(data[i]);
+						}
+					}
+
+					var jsonHulls = [];
+					for(var i = 0; i<hullData.length; i++){
+						var item = hullData[i];
+
+						var ox = offsets[item.id][0];
+						var oy = offsets[item.id][1];
+
+						for(var p = 0; p<item.path.coordinates[0].length; p++){
+							var point = projection(item.path.coordinates[0][p]);
+							item.path.coordinates[0][p][0]=(point[0]+ox);
+							item.path.coordinates[0][p][1]=(point[1]+oy);
+						}
+
+						jsonHulls.push(item);
+					}
+
+					//console.log(JSON.stringify(json));
+					$.ajax({
+						type: "POST",
+						url: "http://localhost:8888/work@beanstalk/trunk/prjcts/mentalmaps/vis/save.php",
+						data: {
+							content: JSON.stringify({buildings:json, hulls:jsonHulls}),
+							name:"buildings_"+year+".json"
+						}
+					});
+	    		});
+			}
+
+			function isInside(o1, o2){
+				var poly1 = o1.path.coordinates[0];
+				var poly2 = o2.path.coordinates[0];
+
+				var c1 = projection([o1.x, o1.y]);
+				var c2 = projection([o2.x, o2.y]);
+
+				var oo1 = projection([o1.offset.x,o1.offset.y]);
+				var oo2 = projection([o2.offset.x,o2.offset.y]);
+
+				var xoff1 = (oo1[0]-c1[0]),
+					yoff1 = (oo1[1]-c1[1]),
+					xoff2 = (oo2[0]-c2[0]),
+					yoff2 = (oo2[1]-c2[1]);
+
+				var bb1 = [
+					projection([
+						d3.min(poly1, function(d){ return d[0]; }),
+						d3.min(poly1, function(d){ return d[1]; })
+					]),
+					projection([
+						d3.max(poly1, function(d){ return d[0]; }),
+						d3.max(poly1, function(d){ return d[1]; })
+					])
+				];
+				bb1[0][0] += xoff1;
+				bb1[0][1] += yoff1;
+				bb1[1][0] += xoff1;
+				bb1[1][1] += yoff1;
+				if(bb1[0][0]>bb1[1][0]){var t = bb1[0][0]; bb1[0][0] = bb1[1][0]; bb1[1][0] = t;}
+				if(bb1[0][1]>bb1[1][1]){var t = bb1[0][1]; bb1[0][1] = bb1[1][1]; bb1[1][1] = t;}
+
+				var bb2 = [
+					projection([
+						d3.min(poly2, function(d){ return d[0]; }),
+						d3.min(poly2, function(d){ return d[1]; })
+					]),
+					projection([
+						d3.max(poly2, function(d){ return d[0]; }),
+						d3.max(poly2, function(d){ return d[1]; })
+					])
+				];
+				bb2[0][0] += xoff2;
+				bb2[0][1] += yoff2;
+				bb2[1][0] += xoff2;
+				bb2[1][1] += yoff2;
+				if(bb2[0][0]>bb2[1][0]){var t = bb2[0][0]; bb2[0][0] = bb2[1][0]; bb2[1][0] = t;}
+				if(bb2[0][1]>bb2[1][1]){var t = bb2[0][1]; bb2[0][1] = bb2[1][1]; bb2[1][1] = t;}
+
+				if(
+					bb1[0][0] > bb2[0][0] &&
+					bb1[0][1] > bb2[0][1] &&
+					bb1[1][0] < bb2[1][0] &&
+					bb1[1][1] < bb2[1][1]
+				){
+					return 1;
+				}else if(
+					bb2[0][0] > bb1[0][0] &&
+					bb2[0][1] > bb1[0][1] &&
+					bb2[1][0] < bb1[1][0] &&
+					bb2[1][1] < bb1[1][1]
+				){
+					return 2;
+				}else{
+					return false;
+				}
+			}
+
+			//https://github.com/substack/point-in-polygon/blob/master/index.js
+			function isInsidePolygone(o1, o2) {
+			    // ray-casting algorithm based on
+			    // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+
+				var poly1 = o1.path.coordinates[0];
+				var poly2 = o2.path.coordinates[0];
+
+				var c1 = projection([o1.x, o1.y]);
+				var c2 = projection([o2.x, o2.y]);
+
+				var oo1 = projection([o1.offset.x,o1.offset.y]);
+				var oo2 = projection([o2.offset.x,o2.offset.y]);
+
+				var xoff1 = (oo1[0]-c1[0]),
+					yoff1 = (oo1[1]-c1[1]),
+					xoff2 = (oo2[0]-c2[0]),
+					yoff2 = (oo2[1]-c2[1]);
+
+			    var x = c1[0]+xoff1, y = c1[1]+yoff1;
+
+			    var inside = false;
+			    for (var i = 0, j = poly2.length - 1; i < poly2.length; j = i++) {
+					var pi = projection(poly2[i]),
+						pj = projection(poly2[j]);
+			        var xi = pi[0]+xoff2, yi = pi[1]+yoff2;
+			        var xj = pj[0]+xoff2, yj = pj[1]+yoff2;
+
+			        var intersect = ((yi > y) != (yj > y))
+			            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+			        if (intersect) inside = !inside;
+			    }
+
+			    return inside;
+			}
+
+
+
+			//http://stackoverflow.com/questions/9043805/test-if-two-lines-intersect-javascript-function
+			function lineIntersect(x1,y1,x2,y2, x3,y3,x4,y4) {
+				var x=((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
+				var y=((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
+				if (isNaN(x)||isNaN(y)) {
+					return false;
+				} else {
+					if (x1>=x2) {
+					    if (!(x2<=x&&x<=x1)) {return false;}
+					} else {
+					    if (!(x1<=x&&x<=x2)) {return false;}
+					}
+					if (y1>=y2) {
+					    if (!(y2<=y&&y<=y1)) {return false;}
+					} else {
+					    if (!(y1<=y&&y<=y2)) {return false;}
+					}
+					if (x3>=x4) {
+					    if (!(x4<=x&&x<=x3)) {return false;}
+					} else {
+					    if (!(x3<=x&&x<=x4)) {return false;}
+					}
+					if (y3>=y4) {
+					    if (!(y4<=y&&y<=y3)) {return false;}
+					} else {
+					    if (!(y3<=y&&y<=y4)) {return false;}
+					}
+				}
+				return true;
+			}
+
+			if (typeof window.callPhantom === 'function') {
+				//
+			}else{
+				init();
+			}
+	    </script>
+	</body>
+</html>

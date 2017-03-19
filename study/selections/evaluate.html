@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Walks</title>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../../libs/d3.v4.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+			circle{
+				stroke:transparent;
+			}
+
+			rect{
+				stroke:transparent;
+				fill:rgba(0,0,0,0.2);
+			}
+
+		</style>
+	</head>
+	<body>
+		<script type="text/javascript">
+
+			var graph_width = 300, 
+				graph_height = 300,
+				width = 2000,
+				height = 1000,
+				bar_width = 10,
+				y_scale = null;
+
+			var svg = d3.select('body').append('svg').attr('width', width).attr('height', height);
+
+			var json = d3.json('experimental_results.json', function(err, data){
+				if(err){console.log(err);}
+
+				var max = 0;
+
+				var types = ["walking","cycling","transport"];
+				for(var t in types){
+					var t_max = d3.max(data, function(d){ return d[types[t]]; });
+					if(t_max > max){
+						max = t_max;
+					}
+				}
+
+				y_scale = d3.scaleLinear()
+							.range([0, graph_height])
+							.domain([(max+1), 0]);
+					
+
+				var g = svg.append('g').attr('transform', 'translate(50, 50)');
+				drawCor(g, data, 'highest');
+
+				/*var g = svg.append('g').attr('transform', 'translate(450, 50)');
+				drawCor(g, data, 'transport');
+
+				var g = svg.append('g').attr('transform', 'translate(850, 50)');
+				drawCor(g, data, 'cycling');
+
+				var g = svg.append('g').attr('transform', 'translate(1250, 50)');
+				drawCor(g, data, 'walking');*/
+
+			});
+
+			function drawCor(g, data, type){
+				data = data.filter(function(d){
+					if((type in d) && d[type]!=0){
+						return true;
+					}else{
+						return false;
+					}
+				});
+
+				var x_scale = d3.scaleLinear()
+								.domain([0, (d3.max(data, function(d){ return d.range; })+1)])
+								.range([0, graph_width]);
+
+				var x_axis = d3.axisBottom().scale(x_scale);
+
+				var y_axis = d3.axisLeft().scale(y_scale);
+
+				g.selectAll('circle').data(data).enter().append('circle')
+					.attr('cx', function(d){return x_scale(d.range);})
+					.attr('cy', function(d){return y_scale(d[type]);})
+					.style('fill', function(d){ 
+						switch(d.highest_type){
+							case 'cycling':
+								return 'rgba(57,166,179,0.2)';
+							break;
+							case 'transport':
+								return 'rgba(132,108,179,0.2)';
+							break;
+							case 'walking':
+								return 'rgba(82,179,122,0.2)';
+							break;
+						}
+					})
+					.attr('r', 4);
+
+				g.append('g').attr('class', 'axis x-axis').attr('transform', 'translate(0,'+graph_height+')').call(x_axis);
+				g.append('g').attr('class', 'axis y-axis').call(y_axis);
+
+				var groups = [0,0,0,0,0,0];
+
+				for(var i = 1; i<=6; i++){
+					var avg = 0, avg_count = 0;
+					data.forEach(function(d){
+						if(d.range == i){
+							avg += d[type];
+							avg_count++;
+						}
+					});
+
+					groups[i] = avg_count;
+
+					g.append('line')
+						.attr('class', 'avg')
+						.attr('x0', 0)
+						.attr('x1', bar_width)
+						.attr('y0', 0)
+						.attr('y1', 0)
+						.attr('style', 'stroke:red; stroke-width:3;')
+						.attr('transform', function(d){
+							return 'translate('+(x_scale(i)-bar_width/2)+','+y_scale((avg/avg_count))+')';
+						});
+				}
+
+				/*var y_scale_bar = d3.scaleLinear()
+									.domain([0, d3.max(groups)])
+									.range([0, graph_height/2]);
+
+				g.selectAll('rect').data(groups).enter().append('rect')
+					.attr('x', function(d,i){return x_scale(i)-bar_width/2})
+					.attr('y', function(d){ return graph_height-y_scale_bar(d);})
+					.attr('width', bar_width)
+					.attr('height', function(d){ return y_scale_bar(d); });*/
+
+			}
+
+		</script>
+	</body>
+</html>

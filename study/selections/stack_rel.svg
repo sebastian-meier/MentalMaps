@@ -1,0 +1,170 @@
+
+<svg width="910px" height="471px" viewBox="31 10 910 471" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 40.2 (33826) - http://www.bohemiancoding.com/sketch -->
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Group" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" transform="translate(31.000000, 10.000000)">
+        <g transform="translate(12.000000, 42.000000)" id="Rectangle-path" fill="#52B37A">
+            <rect x="0" y="418" width="113" height="-0.1"></rect>
+            <rect x="126" y="362" width="113" height="56"></rect>
+            <rect x="252" y="268" width="113" height="150"></rect>
+            <rect x="378" y="180" width="113" height="238"></rect>
+            <rect x="504" y="24" width="113" height="394"></rect>
+            <rect x="630" y="0" width="113" height="418"></rect>
+            <rect x="756" y="13" width="113" height="405"></rect>
+        </g>
+        <g transform="translate(12.000000, 10.000000)" id="Rectangle-path" fill="#846CB3">
+            <rect x="0" y="450" width="113" height="-0.1"></rect>
+            <rect x="126" y="281" width="113" height="113"></rect>
+            <rect x="252" y="225" width="113" height="75"></rect>
+            <rect x="378" y="79" width="113" height="133"></rect>
+            <rect x="504" y="28" width="113" height="28"></rect>
+            <rect x="630" y="32" width="113" height="-0.1"></rect>
+            <rect x="756" y="0" width="113" height="45"></rect>
+        </g>
+        <g transform="translate(12.000000, 9.000000)" id="Rectangle-path" fill="#39A6B3">
+            <rect x="0" y="1" width="113" height="450"></rect>
+            <rect x="126" y="1" width="113" height="281"></rect>
+            <rect x="252" y="1" width="113" height="225"></rect>
+            <rect x="378" y="1" width="113" height="79"></rect>
+            <rect x="504" y="1" width="113" height="28"></rect>
+            <rect x="630" y="1" width="113" height="32"></rect>
+            <rect x="756" y="1" width="113" height="-0.1"></rect>
+        </g>
+        <g transform="translate(9.000000, 459.000000)">
+            <polyline id="Shape" stroke="#000000" points="0.5 7 0.5 1.5 900.5 1.5 900.5 7"></polyline>
+            <g transform="translate(60.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_0" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_0</tspan>
+                </text>
+            </g>
+            <g transform="translate(186.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_1" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_1</tspan>
+                </text>
+            </g>
+            <g transform="translate(312.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_2" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_2</tspan>
+                </text>
+            </g>
+            <g transform="translate(438.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_3" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_3</tspan>
+                </text>
+            </g>
+            <g transform="translate(564.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_4" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_4</tspan>
+                </text>
+            </g>
+            <g transform="translate(690.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_5" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_5</tspan>
+                </text>
+            </g>
+            <g transform="translate(816.000000, 0.000000)">
+                <path d="M0.5,1 L0.5,7" id="Shape" stroke="#000000"></path>
+                <text id="l_6" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0.5" y="10">l_6</tspan>
+                </text>
+            </g>
+        </g>
+        <g>
+            <polyline id="Shape" stroke="#000000" points="3 460.5 9.5 460.5 9.5 10.5 3 10.5"></polyline>
+            <g transform="translate(0.000000, 450.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="0" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">0</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 405.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="10" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">10</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 360.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="20" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">20</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 315.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="30" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">30</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 270.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="40" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">40</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 225.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="50" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">50</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 180.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="60" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">60</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 135.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="70" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">70</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 90.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="80" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">80</tspan>
+                </text>
+            </g>
+            <g transform="translate(0.000000, 45.000000)">
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="90" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">90</tspan>
+                </text>
+            </g>
+            <g>
+                <path d="M9,10.5 L3,10.5" id="Shape" stroke="#000000"></path>
+                <text id="100" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                    <tspan x="0" y="10.5">100</tspan>
+                </text>
+            </g>
+            <text id="Memorization-Index" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                <tspan x="11" y="10">Memorization Index</tspan>
+            </text>
+        </g>
+        <g transform="translate(845.000000, 9.000000)">
+            <rect id="Rectangle-path" fill="#39A6B3" x="46" y="1" width="18" height="18"></rect>
+            <text id="transport" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                <tspan x="0" y="10">transport</tspan>
+            </text>
+        </g>
+        <g transform="translate(854.000000, 29.000000)">
+            <rect id="Rectangle-path" fill="#846CB3" x="37" y="1" width="18" height="18"></rect>
+            <text id="cycling" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                <tspan x="0" y="10">cycling</tspan>
+            </text>
+        </g>
+        <g transform="translate(851.000000, 49.000000)">
+            <rect id="Rectangle-path" fill="#52B37A" x="40" y="1" width="18" height="18"></rect>
+            <text id="walking" fill="#000000" font-family="Helvetica" font-size="10" font-weight="normal">
+                <tspan x="0" y="10">walking</tspan>
+            </text>
+        </g>
+    </g>
+</svg>

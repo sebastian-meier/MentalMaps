@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+        <script src="../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+			}
+
+            path{
+                fill:transparent;
+                stroke:rgb(0,0,0);
+				stroke-linejoin: round;
+				stroke-linecap: round;
+				vector-effect: non-scaling-stroke;
+            }
+
+			rect{
+				fill:rgba(0,0,0,0.2);
+			}
+
+			path.map{
+				fill:transparent;
+				stroke:rgba(0,0,0,0.1);
+			}
+
+			path.building{
+				fill:rgba(0,0,0,1);
+				stroke:rgba(0,0,0,0);
+			}
+
+			path.building.bd-1{
+				fill:rgba(0,0,0,0.1);
+			}
+
+			path.building.bd-2{
+				fill:rgba(0,0,0,0.25);
+			}
+
+			path.building.bd-3{
+				fill:rgba(0,0,0,0.4);
+			}
+
+			path.building.bd-4{
+				fill:rgba(0,0,0,0.55);
+			}
+
+			path.building.bd-5{
+				fill:rgba(0,0,0,0.7);
+			}
+
+			path.building.bd-6{
+				fill:rgb(0,0,0,0.85);
+			}
+
+			path.walking{
+				stroke:rgb(221, 36, 114);
+			}
+
+			path.cycling{
+				stroke:rgb(24, 148, 201);
+			}
+
+			path.transport{
+				stroke:rgb(25, 182, 97, 0.5);
+			}
+
+			path.running{
+				stroke:rgb(214, 166, 22);
+			}
+
+			.overlay {
+				fill: none;
+				pointer-events: all;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+            var width=1000,
+    		    height=1000,
+                zoom = d3.behavior.zoom()
+					.translate([width / 2, height / 2])
+					.scale(100000)
+					.scaleExtent([100000, 1500000])
+					.on("zoom", zoomed),
+    		    projection = d3.geo.mercator()
+                    .translate([width / 2, height / 2])
+                    .scale(100000)
+                    .precision(0.1)
+                    .center([13.403528,52.540212]),
+                path = d3.geo.path()
+                	.projection(projection),
+                container = d3.select('body').append('svg').attr('width', width).attr('height', height),
+				svg = container.append("g"),
+                defs = svg.append("defs"),
+                points = svg.append("g"),
+				intersections = svg.append("g"),
+                patterns = [],
+                backgrounds = [],
+				border = 0;
+
+            svg.append("rect")
+				.attr("class", "overlay")
+				.attr("width", width)
+				.attr("height", height);
+
+			function zoomed() {
+				projection
+					.translate(zoom.translate())
+					.scale(zoom.scale());
+
+				points.selectAll("path")
+					.attr("d", function(d){ return path(d.path); });
+
+				var cbb = container.node().getBoundingClientRect();
+				intersections.selectAll("*").remove();
+
+                hulls.each(function(d, i) {
+                    var t = d3.select(this);
+                    var bb = t.node().getBoundingClientRect();
+
+                    var pad = 50;
+                    var pad_scale = 1500000;
+                    var padding = pad/1500000 * projection.scale();
+
+                    patterns[i]
+                        .attr('width', bb.width+padding)
+                        .attr('height', bb.height+padding)
+                        .attr('y', bb.top-padding/2)
+                        .attr('x', bb.left-padding/2);
+
+                    backgrounds[i]
+                        .attr('width', bb.width+padding)
+                        .attr('height', bb.height+padding);
+
+					intersections.append("rect")
+						.attr('width', bb.width+padding)
+						.attr('height', bb.height+padding)
+						.attr('y', (bb.top-cbb.top-padding/2-border))
+						.attr('x', (bb.left-cbb.left-padding/2-border));
+                });
+			}
+
+			d3.json('http://localhost:10066/hulls/2015', function(err, data){
+
+                hulls = points.selectAll('path').data(data).enter().append('path')
+                    .attr('id', function(d){
+                        return 'hull_'+d.id;
+                    })
+                    .style('fill', function(d){
+                        return 'url(#pattern_'+d.id+')';
+                    });
+
+                hulls.each(function(d, i) {
+                    patterns[i] = defs.append('pattern')
+    					.attr('id', 'pattern_'+d.id)
+                        .attr('width', 0)
+                        .attr('height', 0)
+                        .attr('y', 0)
+                        .attr('x', 0)
+    					.attr('patternUnits', 'userSpaceOnUse');
+
+    				backgrounds[i] = patterns[i].append('image')
+						.attr('width', 0)
+						.attr('height', 0)
+						.attr('xlink:href', 'tmp/building_cluster_2015_'+d.id+'.png');
+                });
+
+                svg
+    			    .call(zoom)
+    			    .call(zoom.event);
+    		});
+
+	    </script>
+	</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../../libs/d3.v4.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			path{
+				fill:transparent;
+				stroke:rgba(0,0,0,0.1);
+			}
+
+			circle{
+				fill:rgba(0,0,0,0.1);
+				stroke:transparent;
+			}			
+
+			line.cycling{
+				stroke:rgba(255,0,0,1);
+			}
+
+			line.walking{
+				stroke:rgba(0,255,0,1);
+			}
+
+			line.transport{
+				stroke:rgba(0,0,255,1);
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+        	var width = 1000,
+        		height = 1000;
+
+            var svg = d3.select('body').append('svg')
+            	.attr('width', width)
+            	.attr('height', height);
+
+            var projection = d3.geoMercator()
+            	.scale(150000)
+            	.center([13.4209713,52.5080453])
+            	.translate([width/2, height/2]);
+
+            var path = d3.geoPath().projection(projection);
+
+            var speed = 0.0001;
+
+			function getLength(path, projection){
+            	var l = 0;
+            	for(var i = 0; i<path.length-1; i++){
+            		l += distance(path[i], path[i+1]);
+            	}
+            	return l;
+            }
+
+            function distance(p1,p2){
+            	return Math.sqrt(Math.pow((p2[0]-p1[0]),2) + Math.pow((p2[1]-p1[1]),2));
+            }
+
+            var segments = [],
+            	time = 0,
+            	g,
+            	lines,
+            	mode = 'seq'; //rand
+
+            d3.csv('../../data/2014.csv', function(error, data){
+            	//Remove empty lines
+            	data = data.filter(function(d,i){
+            		if(d.st_asgeojson.length >= 1){
+            			return true;
+            		}else{
+            			return false;
+            		}
+            	});
+
+            	//Prase geojson
+            	data.forEach(function(d,i){
+            		d.json = JSON.parse(d.st_asgeojson);
+            	});
+
+            	//Check which pathes are inside the bounding box
+            	data = data.filter(function(d){
+            		var b = {
+            			x:{
+            				min:10,
+            				max:16
+            			},
+            			y:{
+            				min:48,
+            				max:56
+            			}
+            		};
+
+            		var outside = false;
+
+            		d.json.coordinates.forEach(function(d,i){
+            			if(d[0] > b.x.max || d[0] < b.x.min){outside = true;}
+            			if(d[1] > b.y.max || d[1] < b.y.min){outside = true;}
+            		});
+
+            		return !outside;
+            	});
+
+            	var delay = 0;
+
+            	//Extract lines and store them in individual segments
+            	data.forEach(function(d){
+            		if(mode != 'seq'){
+            			delay = Math.random()*10000;
+            		}
+					for(var j = 0; j<d.json.coordinates.length-1; j++){
+        				//d.json.coordinates
+        				var l = distance(d.json.coordinates[j], d.json.coordinates[j+1]),
+							c1 = projection(d.json.coordinates[j]),
+							c2 = projection(d.json.coordinates[j+1]);
+
+						segments.push({
+							xd:(c2[0]-c1[0]),
+							yd:(c2[1]-c1[1]),
+							a:d.activity,
+							c1:c1,
+							c2:c2,
+							l:l,
+							duration:l/speed,
+							delay:delay
+						});
+
+        				delay += l/speed;
+        			}
+            	});
+
+            	g = svg.append('g');
+            	lines = g.selectAll('line').data(segments).enter().append('line')
+            		.attr('class',function(d,i){
+            			return d.a;
+            		})
+            		.style('opacity',0)
+            		.attr('x1', function(d,i){
+            			return d.c1[0];
+					})
+					.attr('y1', function(d,i){
+						return d.c1[1];
+					});
+
+            	window.requestAnimationFrame(draw);
+	        });
+
+			function draw(){
+				time += 1;
+
+				lines
+					.style('opacity', function(d, i){
+						if(d.delay<time){
+							return 1;
+						}else{
+							return 0;
+						}
+					})
+					
+					.attr('x2', function(d,i){
+						if(d.delay>time){
+							return d.c1[0];
+						}else if((d.delay + d.duration) < time){
+							return d.c2[0];
+						}else{
+							return d.c1[0]+(d.xd/d.duration)*(time-d.delay);
+						}
+					})
+					.attr('y2', function(d,i){
+						if(d.delay>time){
+							return d.c1[1];
+						}else if((d.delay + d.duration) < time){
+							return d.c2[1];
+						}else{
+							return d.c1[1]+(d.yd/d.duration)*(time-d.delay);
+						}
+					});
+
+				window.requestAnimationFrame(draw);
+			}
+
+
+	    </script>
+	</body>
+</html>

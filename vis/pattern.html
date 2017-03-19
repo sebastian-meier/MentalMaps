@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <style>
+        path{
+            stroke:red;
+            stroke-width:1;
+        }
+    </style>
+</head>
+<body>
+    <svg width="500" height="500">
+        <defs>
+            <pattern width="50" height="50" x="0" y="0" patternunits="userSpaceOnUse" id="pattern">
+                <image width="50" height="50" xlink:href="tmp/bg.png" />
+            </pattern>
+        </defs>
+        <g  transform="translate(25 25)">
+            <path transform="translate(-10 -10)" d="M 10 10 L 60 10 L 60 60 L 10 60 Z" fill="url(#pattern)"></path>
+        </g>
+    </svg>
+</body>
+</html>

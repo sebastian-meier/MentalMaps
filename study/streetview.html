@@ -1,0 +1,144 @@
+<<html>
+<head>
+	<title></title>
+	<style type="text/css">
+		html,body{
+			width:100%;
+			height:100%;
+			margin:0;
+			padding:0;
+			border:0;
+		}
+
+		img{
+			float:left;
+		}
+
+		span{
+			display: block;
+			width:100%;
+		}
+
+		#log img{
+			float: none;
+			height:200px;
+			width:auto;
+		}
+	</style>
+</head>
+<body>
+	<button id="button" type="button">Next</button>
+	<!--<div style="overflow-x:scroll; width:100%;">
+		<div style="width:2400px; height:600px;">
+			<img id="view1" src="https://maps.googleapis.com/maps/api/streetview?size=600x600&location=52.4828896,13.4346603&heading=0&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc" />
+			<img id="view2" src="https://maps.googleapis.com/maps/api/streetview?size=600x600&location=52.4828896,13.4346603&heading=90&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc" />
+			<img id="view3" src="https://maps.googleapis.com/maps/api/streetview?size=600x600&location=52.4828896,13.4346603&heading=180&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc" />
+			<img id="view4" src="https://maps.googleapis.com/maps/api/streetview?size=600x600&location=52.4828896,13.4346603&heading=270&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc" />
+		</div>
+	</div>-->
+	<div id="log"></div>
+	<script src="../libs/d3.v3.min.js" charset="utf-8" type="text/javascript" ></script>
+	<script type="text/javascript">
+		var participants = ["XXXXX"],
+			data = []
+			participant = 0,
+			log = d3.select('#log');
+
+		var webService;
+
+		function initMap(){
+			webService = new google.maps.StreetViewService();  
+			loadData();
+		}
+
+		function loadData(){
+			d3.json('./selections/improve/'+participants[participant]+'.json', function(err, json){
+				data[participants[participant]] = json;
+				participant++;
+				if(participant<participants.length){
+					loadData();
+				}else{
+					participant = 0;
+					setPlace();
+				}
+			})
+		}
+
+		var place, place_count = 0, radius = 0, radi = [10,25,50,75,100,150,200,250,500];
+
+		function setPlace(){
+			var p = data[participants[participant]][place_count];
+			place = new google.maps.LatLng(p.oy, p.ox);
+			getPlace();
+		}
+
+		function getPlace(){
+			webService.getPanorama({location: place, radius: radi[radius], source: google.maps.StreetViewSource.OUTDOOR} ,checkNearestStreetView);
+		}
+
+		function checkNearestStreetView(panoData){
+			if(panoData){
+				if(panoData.location){
+					if(panoData.location.latLng){
+						log.append('span').text(participant+","+participants[participant]+","+place_count+","+radi[radius]+",GOOD,"+panoData.location.latLng.lat()+","+panoData.location.latLng.lng()+","+data[participants[participant]][place_count].x+","+data[participants[participant]][place_count].y);
+
+						for(var i  = 1; i<5; i++){
+							//d3.select('#view'+i).attr('src', "https://maps.googleapis.com/maps/api/streetview?size=600x600&location="+panoData.location.latLng.lat()+","+panoData.location.latLng.lng()+"&heading="+(i*90)+"&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc");
+						}
+
+						//log.append('img').attr('src', "https://maps.googleapis.com/maps/api/streetview?size=600x600&location="+panoData.location.latLng.lat()+","+panoData.location.latLng.lng()+"&heading="+(i*90)+"&pitch=-0.76&key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc");
+
+						data[participants[participant]][place_count]["sx"] = panoData.location.latLng.lng();
+						data[participants[participant]][place_count]["sy"] = panoData.location.latLng.lat();
+
+						nextPlace();
+					}else{
+						increaseRadius();
+					}
+				}else{
+					increaseRadius();
+				}
+			}else{
+				increaseRadius();
+			}
+		}
+
+		function increaseRadius(){
+			radius++;
+			if(radius<radi.length){
+				getPlace();
+			}else{
+				log.append('span').text(participant+","+participants[participant]+","+place_count+","+radi[radius]+",FAIL,,"+","+data[participants[participant]][place_count].x+","+data[participants[participant]][place_count].y);
+				nextPlace();
+			}
+		}
+
+		function nextPlace(){
+			radius = 0;
+			place_count++;
+			if(place_count<data[participants[participant]].length){
+				setPlace();
+			}else{
+				place_count = 0;
+				participant++;
+				if(participant<participants.length){
+					setPlace();
+				}else{
+					console.log("DONE");
+
+					for(var pi = 0; pi<participants.length; pi++){
+						console.log(participants[pi]+":");
+						console.log(JSON.stringify(data[participants[pi]]));
+					}
+				}
+			}
+		}
+
+		d3.select('#button').on('click', function(){nextPlace()});
+
+	</script>
+	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCA8cP_PyKP16JxZNcSr40_3t7CUbU6oCc&callback=initMap"></script>
+ </body>
+</html>
+
+

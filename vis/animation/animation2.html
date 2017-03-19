@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <title>Walks</title>
+        <meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width">
+		<script src="../../libs/d3.v4.min.js" charset="utf-8" type="text/javascript" ></script>
+		<script src="../../libs/topojson.v1.min.js" charset="utf-8" type="text/javascript" ></script>
+		<style type="text/css">
+			body,html{
+				margin:0;
+				padding:0;
+				border:0;
+				width:100%;
+			}
+
+			path{
+				fill:transparent;
+				stroke:rgba(0,0,0,0.05);
+			}
+
+			circle{
+				fill:rgba(0,0,0,0.1);
+				stroke:transparent;
+			}			
+
+			/*line.cycling{
+				stroke:rgba(255,0,0,0.2);
+			}
+
+			line.walking{
+				stroke:rgba(0,255,0,0.2);
+			}
+
+			line.transport{
+				stroke:rgba(0,0,255,0.2);
+			}*/
+
+			line{
+				stroke:rgba(0,0,0,0.3);
+			}
+
+			#overlay{
+				stroke:transparent;
+				fill:#fff;
+			}
+		</style>
+	</head>
+	<body>
+        <script type="text/javascript">
+
+        	var width = 1920,
+        		height = 1080;
+
+            var svg = d3.select('body').append('svg')
+            	.attr('width', width)
+            	.attr('height', height);
+
+            /*svg.append('rect').attr('x',0).attr('y',0).attr('width',width).attr('height',height)
+            	.style('stroke','transparent')
+            	.style('fill','#fff');*/
+
+            var clip = svg.append('defs').append('clipPath').attr('id','berlin');
+
+            var projection = d3.geoMercator()
+            	.scale(150000)
+            	.center([13.3888599,52.5170365])
+            	.translate([width/2, height/2]);
+
+            var path = d3.geoPath().projection(projection);
+
+			function getLength(path, projection){
+            	var l = 0;
+            	for(var i = 0; i<path.length-1; i++){
+            		l += distance(path[i], path[i+1]);
+            	}
+            	return l;
+            }
+
+            function distance(p1,p2){
+            	return Math.sqrt(Math.pow((p2[0]-p1[0]),2) + Math.pow((p2[1]-p1[1]),2));
+            }
+
+            var segments = [],
+            	times = [],
+            	speed = 0.01,
+            	maxTime = 500,
+            	time = 0,
+            	g,
+            	lines,
+            	end = 0,
+            	mode = 'rand'; //rand,seq
+
+            function processData(data){
+            	data = data.filter(function(d,i){
+            		if(d.st_asgeojson.length >= 1){
+            			return true;
+            		}else{
+            			return false;
+            		}
+            	});
+
+        		data.forEach(function(d,i){
+            		d.json = JSON.parse(d.st_asgeojson);
+            	});
+
+            	return data;
+            }
+
+            function drawBlocks(){
+            	d3.csv('../../data/re_blocks.csv', function(error, data){
+            		data = processData(data);
+
+	            	svg.append('g').attr('class', 're_blocks').selectAll('path').data(data).enter().append('path')
+	            		.attr('d', function(d,i){
+	            			return path(d.json);
+	            		});
+
+	            	init_paths();
+	            });
+            }
+
+            function drawWater(){
+            	d3.json('../../data/water.geojson', function(error, data){
+            		svg.append('g').attr('class','water').selectAll('path').data(data.features.filter(function(d,i){
+            			if(d.geometry.type == "Point" || d.geometry.type == "MultiPoint"){
+            				return false;
+            			}else{
+            				return true;
+            			}
+            		})).enter().append('path')
+            			.style('fill', function(d,i){
+            				if(d.geometry.type != "LineString" && d.geometry.type != "MultiLineString"){
+	            				return "rgba(213,236,245,1)";
+            				}else{
+            					return "transparent";
+            				}
+            			})
+            			.style('stroke', function(d,i){
+            				if(d.geometry.type == "LineString" || d.geometry.type == "MultiLineString"){
+	            				return "rgba(213,236,245,1)";
+            				}else{
+            					return "transparent";
+            				}
+            			})
+            			.attr('d', path);
+
+            		drawBlocks();
+            	});
+            }
+
+            function drawGreen(){
+            	d3.json('../../data/parks.topojson', function(error, data){
+            		svg.append('g').attr('class','green').selectAll('path').data(topojson.feature(data, data.objects.parks).features.filter(function(d,i){
+            			if(d.geometry.type == "Point" || d.geometry.type == "MultiPoint"){
+            				return false;
+            			}else{
+            				return true;
+            			}
+            		})).enter().append('path')
+            			.style('fill', function(d,i){
+            				return "rgba(227,245,213,1)";
+            			})
+            			.style('stroke', function(d,i){
+        					return "transparent";
+            			})
+            			.attr('d', path);
+
+            		svg.append('rect').attr('id', 'overlay').attr('x',0).attr('y',0).attr('width',width).attr('height',height)
+            			.attr('clip-path', 'url(#berlin)');
+
+            		drawWater();
+            	});
+            }
+
+            function drawBerlin(){
+            	d3.json('../../data/berlin.geojson', function(error, data){
+
+            		clip.append('path').attr('d', path(data.features[0]));
+
+            		drawGreen();
+            	});
+            }
+
+            function init(){
+            	//drawBerlin();
+            	init_paths();
+            }
+
+            function init_paths(){
+	            d3.csv('../../data/2015.csv', function(error, data){
+	            	data = processData(data);
+
+	            	//Check which pathes are inside the bounding box
+	            	data = data.filter(function(d){
+	            		var b = {
+	            			x:{
+	            				min:10,
+	            				max:16
+	            			},
+	            			y:{
+	            				min:48,
+	            				max:56
+	            			}
+	            		};
+
+	            		var outside = false;
+
+	            		d.json.coordinates.forEach(function(d,i){
+	            			if(d[0] > b.x.max || d[0] < b.x.min){outside = true;}
+	            			if(d[1] > b.y.max || d[1] < b.y.min){outside = true;}
+	            		});
+
+	            		return !outside;
+	            	});
+
+	            	var multi = maxTime / Math.log(data.length);
+
+	            	for(var i = 0; i<data.length; i++){
+	            		times.push(Math.log((i+1))*multi);
+	            	}
+
+	            	var delay = 0;
+
+	            	//Extract lines and store them in individual segments
+	            	data.forEach(function(d){
+	            		if(mode == 'seq'){
+	            			//nothing
+	            		}else{
+	            			var index = Math.floor(Math.random()*(times.length-1));
+	            			delay = times[index];
+	            			times.slice(index,1);
+	            		}
+						for(var j = 0; j<d.json.coordinates.length-1; j++){
+	        				//d.json.coordinates
+	        				var l = distance(d.json.coordinates[j], d.json.coordinates[j+1]),
+								c1 = projection(d.json.coordinates[j]),
+								c2 = projection(d.json.coordinates[j+1]);
+
+							segments.push({
+								xd:(c2[0]-c1[0]),
+								yd:(c2[1]-c1[1]),
+								a:d.activity,
+								c1:c1,
+								c2:c2,
+								l:l,
+								duration:l/speed,
+								delay:delay
+							});
+
+	        				delay += l/speed;
+
+	        				if((l/speed + delay)>end){
+	        					end = (l/speed + delay);
+	        				}
+	        			}
+	            	});
+
+	            	g = svg.append('g');
+	            	lines = g.selectAll('line').data(segments).enter().append('line')
+	            		.attr('class',function(d,i){
+	            			return d.a;
+	            		})
+	            		.style('opacity',0)
+	            		.attr('x1', function(d,i){
+	            			return d.c1[0];
+						})
+						.attr('y1', function(d,i){
+							return d.c1[1];
+						});
+
+	            	draw();
+		        });
+			}
+
+			function draw(){
+				time += 1;
+
+				lines
+					.style('opacity', function(d, i){
+						if(d.delay<time){
+							return 1;
+						}else{
+							return 0;
+						}
+					})
+					
+					.attr('x2', function(d,i){
+						if(d.delay>time){
+							return d.c1[0];
+						}else if((d.delay + d.duration) < time){
+							return d.c2[0];
+						}else{
+							return d.c1[0]+(d.xd/d.duration)*(time-d.delay);
+						}
+					})
+					.attr('y2', function(d,i){
+						if(d.delay>time){
+							return d.c1[1];
+						}else if((d.delay + d.duration) < time){
+							return d.c2[1];
+						}else{
+							return d.c1[1]+(d.yd/d.duration)*(time-d.delay);
+						}
+					});
+
+				if (typeof window.callPhantom === 'function') {
+					if(time > end){
+						window.callPhantom({ msg: 'exit' });
+					}else{
+						window.callPhantom({ msg: 'render' });
+					}
+				}else{
+					if(time > end){
+						console.log("End");
+					}else{
+						window.requestAnimationFrame(draw);						
+					}
+				}
+			}
+
+			if (typeof window.callPhantom === 'function') {
+				//
+			}else{
+				init();
+			}
+
+	    </script>
+	</body>
+</html>
